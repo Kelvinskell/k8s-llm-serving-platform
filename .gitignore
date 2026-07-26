@@ -44,3 +44,6 @@ temp/
 *.zip
 *.tar
 *.tar.gz
+
+# Other files
+roadmap/
