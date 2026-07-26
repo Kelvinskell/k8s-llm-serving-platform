@@ -17,6 +17,7 @@ You will practice:
 
 ## Related References
 - [docs/runbooks/dcgm-prometheus-metrics-reference.md](docs/runbooks/dcgm-prometheus-metrics-reference.md)
+- [docs/runbooks/vllm-prometheus-metrics-reference.md](docs/runbooks/vllm-prometheus-metrics-reference.md)
 - [kubernetes/base/monitoring/gpu-recording-rules.yaml](kubernetes/base/monitoring/gpu-recording-rules.yaml)
 - [kubernetes/base/monitoring/gpu-alert-rules.yaml](kubernetes/base/monitoring/gpu-alert-rules.yaml)
 - [docs/runbooks/vllm-manual-serving-runbook.md](docs/runbooks/vllm-manual-serving-runbook.md)
