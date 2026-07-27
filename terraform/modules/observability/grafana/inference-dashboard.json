@@ -109,7 +109,7 @@
 			],
 			"timeFrom": null,
 			"timeShift": null,
-			"title": "Current Output Throughput (tokens/s)",
+					"title": "Current Output Throughput Total (tokens/s)",
 			"type": "stat"
 		},
 		{
@@ -207,7 +207,7 @@
 			"pluginVersion": "6.5.2",
 			"targets": [
 				{
-					"expr": "max(vllm:kv_cache_usage_perc{namespace=\"llm-serving\",pod=~\"vllm-tinyllama-.*\"})",
+					"expr": "100 * max(vllm:kv_cache_usage_perc{namespace=\"llm-serving\",pod=~\"vllm-tinyllama-.*\"})",
 					"refId": "A"
 				}
 			],
@@ -268,7 +268,7 @@
 			"timeFrom": null,
 			"timeRegions": [],
 			"timeShift": null,
-			"title": "Output Throughput (tokens/s)",
+					"title": "Output Throughput by Pod (tokens/s)",
 			"tooltip": {
 				"shared": true,
 				"sort": 0,
@@ -442,7 +442,7 @@
 			"steppedLine": false,
 			"targets": [
 				{
-					"expr": "max by (pod) (vllm:kv_cache_usage_perc{namespace=\"llm-serving\",pod=~\"vllm-tinyllama-.*\"})",
+					  "expr": "100 * max by (pod) (avg_over_time(vllm:kv_cache_usage_perc{namespace=\"llm-serving\",pod=~\"vllm-tinyllama-.*\"}[30m]))",
 					"legendFormat": "{{pod}}",
 					"refId": "A"
 				}
@@ -724,6 +724,100 @@
 			"timeRegions": [],
 			"timeShift": null,
 			"title": "Input Demand Shape",
+			"tooltip": {
+				"shared": true,
+				"sort": 0,
+				"value_type": "individual"
+			},
+			"type": "graph",
+			"xaxis": {
+				"buckets": null,
+				"mode": "time",
+				"name": null,
+				"show": true,
+				"values": []
+			},
+			"yaxes": [
+				{
+					"format": "none",
+					"label": null,
+					"logBase": 1,
+					"max": null,
+					"min": "0",
+					"show": true
+				},
+				{
+					"format": "short",
+					"label": null,
+					"logBase": 1,
+					"max": null,
+					"min": null,
+					"show": true
+				}
+			],
+			"yaxis": {
+				"align": false,
+				"alignLevel": null
+			}
+		},
+		{
+			"aliasColors": {},
+			"bars": false,
+			"dashLength": 10,
+			"dashes": false,
+			"datasource": "Prometheus",
+			"fill": 1,
+			"fillGradient": 0,
+			"gridPos": {
+				"h": 8,
+				"w": 24,
+				"x": 0,
+				"y": 29
+			},
+			"hiddenSeries": false,
+			"id": 10,
+			"legend": {
+				"alignAsTable": true,
+				"avg": true,
+				"current": true,
+				"max": true,
+				"min": false,
+				"rightSide": true,
+				"show": true,
+				"total": false,
+				"values": true
+			},
+			"lines": true,
+			"linewidth": 2,
+			"nullPointMode": "null",
+			"options": {
+				"dataLinks": []
+			},
+			"percentage": false,
+			"pointradius": 2,
+			"points": false,
+			"renderer": "flot",
+			"seriesOverrides": [],
+			"spaceLength": 10,
+			"stack": false,
+			"steppedLine": false,
+			"targets": [
+				{
+					"expr": "sum(rate(vllm:generation_tokens_total{namespace=\"llm-serving\",pod=~\"vllm-tinyllama-.*\"}[1m])) / clamp_min(sum(vllm:num_requests_running{namespace=\"llm-serving\",pod=~\"vllm-tinyllama-.*\"}), 1)",
+					"legendFormat": "total",
+					"refId": "A"
+				},
+				{
+					"expr": "sum by (pod) (rate(vllm:generation_tokens_total{namespace=\"llm-serving\",pod=~\"vllm-tinyllama-.*\"}[1m])) / clamp_min(sum by (pod) (vllm:num_requests_running{namespace=\"llm-serving\",pod=~\"vllm-tinyllama-.*\"}), 1)",
+					"legendFormat": "{{pod}}",
+					"refId": "B"
+				}
+			],
+			"thresholds": [],
+			"timeFrom": null,
+			"timeRegions": [],
+			"timeShift": null,
+			"title": "Output Throughput per Running Request (tokens/s/request)",
 			"tooltip": {
 				"shared": true,
 				"sort": 0,

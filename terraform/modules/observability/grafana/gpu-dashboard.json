@@ -200,7 +200,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "DCGM_FI_DEV_GPU_UTIL{gpu=~\"$gpu\"}",
+          "expr": "avg_over_time(DCGM_FI_DEV_GPU_UTIL{gpu=~\"$gpu\"}[30m])",
           "legendFormat": "GPU {{gpu}}",
           "refId": "A"
         }
@@ -428,7 +428,7 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "100 * DCGM_FI_DEV_FB_USED{gpu=~\"$gpu\"} / (DCGM_FI_DEV_FB_USED{gpu=~\"$gpu\"} + DCGM_FI_DEV_FB_FREE{gpu=~\"$gpu\"})",
+          "expr": "100 * avg_over_time(DCGM_FI_DEV_FB_USED{gpu=~\"$gpu\"}[30m]) / (avg_over_time(DCGM_FI_DEV_FB_USED{gpu=~\"$gpu\"}[30m]) + avg_over_time(DCGM_FI_DEV_FB_FREE{gpu=~\"$gpu\"}[30m]))",
           "legendFormat": "GPU {{gpu}}",
           "refId": "A"
         }
@@ -504,12 +504,12 @@
       "steppedLine": false,
       "targets": [
         {
-          "expr": "DCGM_FI_DEV_FB_USED{gpu=~\"$gpu\"}",
+          "expr": "DCGM_FI_DEV_FB_USED{gpu=~\"$gpu\"} * 1024 * 1024",
           "legendFormat": "GPU {{gpu}}",
           "refId": "A"
         }
       ],
-      "title": "VRAM Used Bytes",
+      "title": "VRAM Used (GB)",
       "tooltip": {
         "shared": true,
         "sort": 0,
