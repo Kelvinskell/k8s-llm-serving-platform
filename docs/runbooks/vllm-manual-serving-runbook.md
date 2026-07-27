@@ -113,6 +113,34 @@ curl -s http://127.0.0.1:8000/v1/chat/completions \
   -d '{"model":"tinyllama","messages":[{"role":"user","content":"Hello"}]}' | python3 -m json.tool
 ```
 
+## Step 4.1: Quick Stress Test (5 Terminals)
+Run the following in 5 separate terminals while port-forward on `:8000` is active.
+
+Terminal 1:
+```bash
+for i in {1..1000}; do echo "T1 run $i"; curl -s http://127.0.0.1:8000/v1/chat/completions -H "Content-Type: application/json" -d "{\"model\":\"tinyllama\",\"messages\":[{\"role\":\"system\",\"content\":\"You are a senior SRE for GPU inference systems.\"},{\"role\":\"user\",\"content\":\"Write a full post-incident report for a production LLM outage with timeline, blast radius, telemetry interpretation, root cause tree, rollback, remediation, and prevention. Include deep technical detail and at least 40 concrete action items. Request ID: $i\"}],\"max_tokens\":1000,\"temperature\":0.7}" | jq; done
+```
+
+Terminal 2:
+```bash
+for i in {1..1000}; do echo "T2 run $i"; curl -s http://127.0.0.1:8000/v1/chat/completions -H "Content-Type: application/json" -d "{\"model\":\"tinyllama\",\"messages\":[{\"role\":\"system\",\"content\":\"You are an ML platform engineer.\"},{\"role\":\"user\",\"content\":\"Design a capacity planning document for multi-tenant LLM serving on shared GPUs. Include traffic classes, queueing model, scaling thresholds, SLO math, and cost-performance tradeoffs with concrete examples. Request ID: $i\"}],\"max_tokens\":1000,\"temperature\":0.75}" | jq; done
+```
+
+Terminal 3:
+```bash
+for i in {1..1000}; do echo "T3 run $i"; curl -s http://127.0.0.1:8000/v1/chat/completions -H "Content-Type: application/json" -d "{\"model\":\"tinyllama\",\"messages\":[{\"role\":\"system\",\"content\":\"You are a principal backend architect.\"},{\"role\":\"user\",\"content\":\"Produce an architecture review for high-throughput chat API serving with Kubernetes and vLLM. Cover request lifecycle, bottlenecks, memory behavior, latency decomposition, and mitigations in depth. Request ID: $i\"}],\"max_tokens\":1000,\"temperature\":0.8}" | jq; done
+```
+
+Terminal 4:
+```bash
+for i in {1..1000}; do echo "T4 run $i"; curl -s http://127.0.0.1:8000/v1/chat/completions -H "Content-Type: application/json" -d "{\"model\":\"tinyllama\",\"messages\":[{\"role\":\"system\",\"content\":\"You are a distributed systems professor.\"},{\"role\":\"user\",\"content\":\"Explain queueing, batching, token scheduling, and KV-cache pressure in LLM inference with numerical examples and step-by-step derivations. Request ID: $i\"}],\"max_tokens\":1000,\"temperature\":0.85}" | jq; done
+```
+
+Terminal 5:
+```bash
+for i in {1..1000}; do echo "T5 run $i"; curl -s http://127.0.0.1:8000/v1/chat/completions -H "Content-Type: application/json" -d "{\"model\":\"tinyllama\",\"messages\":[{\"role\":\"system\",\"content\":\"You are a staff reliability engineer.\"},{\"role\":\"user\",\"content\":\"Create a runbook for diagnosing severe latency regressions in LLM inference, including triage flow, Prometheus queries, dashboard interpretation, pod checks, GPU diagnostics, and rollback criteria. Request ID: $i\"}],\"max_tokens\":1000,\"temperature\":0.7}" | jq; done
+```
+
 ## Step 5: Understand Request Arguments
 Required:
 - `model`: API model name to route request to (must match served model name).
