@@ -38,6 +38,26 @@ kubectl -n monitoring get prometheus
 kubectl -n monitoring get pods
 ```
 
+## Grafana Access
+Port-forward Grafana locally:
+
+```bash
+kubectl -n monitoring port-forward svc/kube-prometheus-stack-grafana 8080:80
+```
+
+Open:
+
+```text
+http://127.0.0.1:8080
+```
+
+Get Grafana admin username and password from the monitoring namespace secret:
+
+```bash
+kubectl -n monitoring get secret kube-prometheus-stack-grafana -o jsonpath='{.data.admin-user}' | base64 --decode; echo
+kubectl -n monitoring get secret kube-prometheus-stack-grafana -o jsonpath='{.data.admin-password}' | base64 --decode; echo
+```
+
 ## Validate the Prometheus Expressions
 Use the Prometheus UI or query endpoint to test these expressions:
 
