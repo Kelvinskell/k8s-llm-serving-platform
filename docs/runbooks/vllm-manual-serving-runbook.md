@@ -278,10 +278,3 @@ Fix in this project:
 ```bash
 kubectl delete -f kubernetes/serving/vllm/
 ```
-
-## Evidence to Capture for Phase 4
-- Deployment rollout success output.
-- vLLM startup log snippet showing `/health` 200.
-- Example successful curl response.
-- Prometheus target status screenshot or output.
-- GPU metric query snapshot during active inference load.
