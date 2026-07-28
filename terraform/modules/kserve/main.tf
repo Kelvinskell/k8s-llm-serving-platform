@@ -123,7 +123,7 @@ resource "null_resource" "kserve_install" {
 
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-lc"]
-    command = <<-EOT
+    command     = <<-EOT
       set -euo pipefail
 
       kubectl create namespace kserve --dry-run=client -o yaml | kubectl apply -f -
