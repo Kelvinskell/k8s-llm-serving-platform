@@ -92,3 +92,14 @@ module "observability" {
     module.nvidia_device_plugin
   ]
 }
+
+# Deploy Kserve crds
+module "kserve" {
+  source = "../../modules/kserve"
+
+  depends_on = [
+    module.eks,
+    module.nodegroups,
+    module.nvidia_device_plugin
+  ]
+}

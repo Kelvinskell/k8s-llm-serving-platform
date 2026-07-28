@@ -54,3 +54,8 @@ output "observability_namespace" {
   description = "Namespace where kube-prometheus-stack is installed."
   value       = module.observability.namespace
 }
+
+output "kserve_version" {
+  description = "Pinned KServe version configured by Terraform module."
+  value       = module.kserve.kserve_version
+}
