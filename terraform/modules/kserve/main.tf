@@ -134,7 +134,8 @@ resource "null_resource" "kserve_install" {
       kubectl wait --for=condition=Established --timeout=300s \
         crd/inferenceservices.serving.kserve.io \
         crd/servingruntimes.serving.kserve.io \
-        crd/clusterservingruntimes.serving.kserve.io
+        crd/clusterservingruntimes.serving.kserve.io \
+        crd/clusterstoragecontainers.serving.kserve.io
 
       kubectl apply --server-side --force-conflicts --validate=false \
         -f https://github.com/kserve/kserve/releases/download/${var.kserve_version}/kserve.yaml
