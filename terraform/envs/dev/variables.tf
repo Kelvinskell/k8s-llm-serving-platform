@@ -232,5 +232,5 @@ variable "dcgm_exporter_chart_version" {
 variable "enable_kserve_module" {
   description = "Enable or disable kserve module"
   type        = bool
-  default     = false
+  default     = true
 }

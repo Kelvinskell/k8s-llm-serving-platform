@@ -30,6 +30,24 @@ module "eks" {
   tags                  = var.tags
 }
 
+# Deploy Karpenter controller and node provisioning resources.
+module "karpentar" {
+  source = "../../modules/karpentar"
+
+  cluster_name              = module.eks.cluster_name
+  cluster_endpoint          = module.eks.cluster_endpoint
+  cluster_oidc_issuer_url   = module.eks.cluster_oidc_issuer_url
+  cluster_oidc_provider_arn = module.eks.cluster_oidc_provider_arn
+  karpenter_node_role_arn   = module.nodegroups.node_role_arn
+  karpenter_node_role_name  = module.nodegroups.node_role_name
+  tags                      = var.tags
+
+  depends_on = [
+    module.eks,
+    module.nodegroups
+  ]
+}
+
 # Deploy EKS add-ons 
 module "eks_addons" {
   source = "../../modules/eks-addons"
