@@ -5,7 +5,8 @@ resource "aws_security_group" "eks_cluster_sg" {
   vpc_id      = var.vpc_id
 
   tags = merge(local.common_tags, {
-    Name = "${var.name_prefix}-eks-cluster-sg-${var.environment}"
+    Name                     = "${var.name_prefix}-eks-cluster-sg-${var.environment}"
+    "karpenter.sh/discovery" = var.cluster_name
   })
 }
 

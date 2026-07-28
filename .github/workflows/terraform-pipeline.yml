@@ -48,6 +48,7 @@ jobs:
       CPU_INSTANCE_TYPES: ${{ vars.CPU_INSTANCE_TYPES }}
       GPU_INSTANCE_TYPES: ${{ vars.GPU_INSTANCE_TYPES }}
       ACCESS_PRINCIPAL_ARNS: ${{ vars.ACCESS_PRINCIPAL_ARNS }}
+      EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
     defaults:
       run:
         shell: bash
@@ -110,9 +111,18 @@ jobs:
           fi
 
       # Apply runs automatically on PR and on manual runs when action=apply.
-      - name: Terraform apply (PR + manual apply)
+      - name: Terraform apply First (PR + manual apply)
         if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.terraform_action == 'apply')
-        run: terraform apply -auto-approve -var-file=ci.auto.tfvars
+        run: terraform apply -auto-approve -var-file=ci.auto.tfvars -var="enable_kserve_module=false"
+
+      - name: Update kubeconfig
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.terraform_action == 'apply')
+        run: |
+          aws eks update-kubeconfig --name "${EKS_CLUSTER_NAME}" --region "${AWS_REGION}"
+
+      - name: Terraform apply Second (PR + manual apply)
+        if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.terraform_action == 'apply')
+        run: terraform apply -auto-approve -var-file=ci.auto.tfvars -var="enable_kserve_module=true"
 
       # Destroy is intentionally manual-only.
       - name: Terraform destroy (manual)

@@ -84,4 +84,4 @@ up{job="dcgm-exporter"} == 0
 - Check that the metrics exist by querying the raw DCGM metric names directly.
 
 ## Notes
-This runbook is intentionally operational. It is meant for day-to-day verification and troubleshooting rather than project planning or phase tracking.
+This runbook is intentionally operational. It is meant for day-to-day verification and troubleshooting.

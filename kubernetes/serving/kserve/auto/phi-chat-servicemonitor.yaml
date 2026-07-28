@@ -1,0 +1,24 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vllm-kserve-phi
+  namespace: llm-serving
+  labels:
+    release: kube-prometheus-stack
+    app.kubernetes.io/part-of: llm-serving
+spec:
+  namespaceSelector:
+    matchNames:
+      - llm-serving
+  selector:
+    matchExpressions:
+      - key: serving.kserve.io/inferenceservice
+        operator: In
+        values:
+          - phi-chat-2
+          - phi-chat-3
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
