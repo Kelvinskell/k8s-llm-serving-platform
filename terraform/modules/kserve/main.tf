@@ -13,8 +13,8 @@ resource "helm_release" "cert_manager" {
   timeout         = var.helm_timeout_seconds
 
   set {
-      name  = "crds.enabled"
-      value = "true"
+    name  = "crds.enabled"
+    value = "true"
   }
 }
 
