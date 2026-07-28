@@ -48,6 +48,7 @@ jobs:
       CPU_INSTANCE_TYPES: ${{ vars.CPU_INSTANCE_TYPES }}
       GPU_INSTANCE_TYPES: ${{ vars.GPU_INSTANCE_TYPES }}
       ACCESS_PRINCIPAL_ARNS: ${{ vars.ACCESS_PRINCIPAL_ARNS }}
+      EKS_CLUSTER_NAME: ${{ vars.EKS_CLUSTER_NAME }}
     defaults:
       run:
         shell: bash
