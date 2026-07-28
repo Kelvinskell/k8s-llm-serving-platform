@@ -1,13 +1,16 @@
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
-  name: phi-chat
+  name: phi-chat-3
   namespace: llm-serving
+  annotations:
+    serving.kserve.io/deploymentMode: RawDeployment
+  labels:
+    app.kubernetes.io/name: phi-chat-3
+    app.kubernetes.io/part-of: llm-serving
 spec:
-  # Send 25% traffic to the new revision created from this updated predictor.
-  # Remaining 75% automatically stays on previous ready revision.
-  canaryTrafficPercent: 25
-
+  # Istio VirtualService will be used to send 25% traffic to the new revision created from this updated predictor.
+  # Remaining 75% will be sent by Istio VirtualService to the previous ready revision.
   predictor:
     serviceAccountName: vllm-serving
     nodeSelector:
@@ -20,6 +23,7 @@ spec:
     containers:
       - name: kserve-container
         image: vllm/vllm-openai:v0.25.1
+        imagePullPolicy: IfNotPresent
         args:
           - /models/microsoft/Phi-3-mini-4k-instruct/main
           - --served-model-name
@@ -29,9 +33,15 @@ spec:
           - --port
           - "8000"
           - --gpu-memory-utilization
-          - "0.90"
+          - "0.85"
           - --max-num-seqs
           - "16"
+
+        ports:
+          - name: http
+            containerPort: 8000
+            protocol: TCP
+
         resources:
           requests:
             cpu: "1200m"
@@ -41,6 +51,24 @@ spec:
             cpu: "2000m"
             memory: "7Gi"
             nvidia.com/gpu: "1"
+
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 18
+
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 90
+          periodSeconds: 20
+          timeoutSeconds: 5
+          failureThreshold: 6
 
         volumeMounts:
           - name: model-cache
