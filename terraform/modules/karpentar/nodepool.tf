@@ -12,7 +12,6 @@ resource "kubectl_manifest" "gpu_node_pool" {
       template = {
         metadata = {
           labels = {
-            eks.amazonaws.com/nodegroup = "k8s-llm-serving-gpu-dev" # This label is added here for scheduling compatibility with Nodes from AWS managed nodegroups.
             workload = "inference"
             gpu      = "true"
           }
