@@ -1,0 +1,21 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: vllm-tinyllama
+  namespace: llm-serving
+  labels:
+    app.kubernetes.io/name: vllm-tinyllama
+    app.kubernetes.io/part-of: llm-serving
+    release: kube-prometheus-stack
+spec:
+  namespaceSelector:
+    matchNames:
+      - llm-serving
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vllm-tinyllama
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s

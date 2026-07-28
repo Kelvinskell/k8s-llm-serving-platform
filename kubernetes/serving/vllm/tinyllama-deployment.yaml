@@ -1,0 +1,81 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-tinyllama
+  namespace: llm-serving
+  labels:
+    app.kubernetes.io/name: vllm-tinyllama
+    app.kubernetes.io/part-of: llm-serving
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vllm-tinyllama
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vllm-tinyllama
+        app.kubernetes.io/part-of: llm-serving
+    spec:
+      enableServiceLinks: false
+      serviceAccountName: vllm-tinyllama
+      nodeSelector:
+        eks.amazonaws.com/nodegroup: k8s-llm-serving-gpu-dev
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:v0.25.1
+          imagePullPolicy: IfNotPresent
+          args:
+            - /models/TinyLlama/TinyLlama-1.1B-Chat-v1.0/main
+            - --served-model-name
+            - tinyllama
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8000"
+            - --gpu-memory-utilization
+            - "0.85"
+            - --max-num-seqs
+            - "16"
+          ports:
+            - name: http
+              containerPort: 8000
+              protocol: TCP
+          resources:
+            requests:
+              cpu: "1000m"
+              memory: "4Gi"
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "2000m"
+              memory: "8Gi"
+              nvidia.com/gpu: "1"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 12
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          volumeMounts:
+            - name: model-cache
+              mountPath: /models
+              readOnly: true
+      volumes:
+        - name: model-cache
+          hostPath:
+            path: /var/lib/llm-model-cache
+            type: Directory

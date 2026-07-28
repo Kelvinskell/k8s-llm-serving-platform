@@ -1,4 +1,4 @@
-# Phase 01 Runbook: NVIDIA Device Plugin Verification (EKS)
+#  NVIDIA Device Plugin Verification (EKS) Runbook
 
 ## Purpose
 Verify that GPU nodes expose `nvidia.com/gpu` and the NVIDIA device plugin is healthy after Terraform apply.

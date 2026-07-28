@@ -106,3 +106,58 @@ resource "helm_release" "dcgm_exporter" {
 
   depends_on = [helm_release.kube_prometheus_stack]
 }
+
+# Publish Grafana dashboards as labeled ConfigMaps for the Grafana sidecar.
+resource "kubernetes_config_map_v1" "gpu_dashboard" {
+  count = var.enabled ? 1 : 0
+
+  metadata {
+    name      = "gpu-dashboard"
+    namespace = var.namespace
+    labels = {
+      grafana_dashboard = "1"
+    }
+  }
+
+  data = {
+    "gpu-dashboard.json" = file("${path.module}/grafana/gpu-dashboard.json")
+  }
+
+  depends_on = [helm_release.kube_prometheus_stack]
+}
+
+resource "kubernetes_config_map_v1" "latency_dashboard" {
+  count = var.enabled ? 1 : 0
+
+  metadata {
+    name      = "latency-dashboard"
+    namespace = var.namespace
+    labels = {
+      grafana_dashboard = "1"
+    }
+  }
+
+  data = {
+    "latency-dashboard.json" = file("${path.module}/grafana/latency-dashboard.json")
+  }
+
+  depends_on = [helm_release.kube_prometheus_stack]
+}
+
+resource "kubernetes_config_map_v1" "inference_dashboard" {
+  count = var.enabled ? 1 : 0
+
+  metadata {
+    name      = "inference-dashboard"
+    namespace = var.namespace
+    labels = {
+      grafana_dashboard = "1"
+    }
+  }
+
+  data = {
+    "inference-dashboard.json" = file("${path.module}/grafana/inference-dashboard.json")
+  }
+
+  depends_on = [helm_release.kube_prometheus_stack]
+}
