@@ -60,3 +60,4 @@ jobs:
             --dry-run=client -o yaml | kubectl apply -f -
           kubectl apply -f kubernetes/base/storage
           kubectl apply -f kubernetes/base/monitoring
+          kubectl apply -f kubernetes/serving/kserve/auto
