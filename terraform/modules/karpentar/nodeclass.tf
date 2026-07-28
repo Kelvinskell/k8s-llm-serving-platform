@@ -12,6 +12,12 @@ resource "kubectl_manifest" "gpu_node_class" {
       amiFamily = "AL2023"
       role      = var.karpenter_node_role_name
 
+      amiSelectorTerms = [
+        {
+          alias = "al2023@latest"
+        }
+      ]
+
       subnetSelectorTerms = [
         {
           tags = {
