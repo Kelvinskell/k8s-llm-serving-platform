@@ -57,5 +57,5 @@ output "observability_namespace" {
 
 output "kserve_version" {
   description = "Pinned KServe version configured by Terraform module."
-  value       = module.kserve[0].kserve_version
+  value       = try(module.kserve[0].kserve_version, null)
 }
