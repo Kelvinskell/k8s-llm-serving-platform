@@ -1,7 +1,7 @@
 # Runbook: Phase 7 Benchmarking with llm-perf (KServe phi-chat-2)
 
 ## Purpose
-This runbook explains how to execute the Phase 7 benchmark sweep (A-H) for the KServe phi-chat-2 service and collect benchmark outputs automatically.
+This runbook explains how to execute the benchmark run (A-H) for the KServe phi-chat-2 service and collect benchmark outputs automatically.
 
 ## Scope
 This runbook covers:
@@ -12,14 +12,9 @@ This runbook covers:
 - What to capture manually in addition to CSV output
 - Common troubleshooting
 
-## Source of Truth
-- Roadmap phase reference: [docs/roadmap/k8s-llm-serving-platform-roadmap.md](docs/roadmap/k8s-llm-serving-platform-roadmap.md)
-- Benchmark runner: [load-testing/scripts/llm-perf/run-benchmark.sh](load-testing/scripts/llm-perf/run-benchmark.sh)
-- Test profiles: [load-testing/scripts/llm-perf/configs/test-a-seqs-8.sh](load-testing/scripts/llm-perf/configs/test-a-seqs-8.sh), [load-testing/scripts/llm-perf/configs/test-b-seqs-16.sh](load-testing/scripts/llm-perf/configs/test-b-seqs-16.sh), [load-testing/scripts/llm-perf/configs/test-c-seqs-32.sh](load-testing/scripts/llm-perf/configs/test-c-seqs-32.sh), [load-testing/scripts/llm-perf/configs/test-d-batched-512.sh](load-testing/scripts/llm-perf/configs/test-d-batched-512.sh), [load-testing/scripts/llm-perf/configs/test-e-batched-1024.sh](load-testing/scripts/llm-perf/configs/test-e-batched-1024.sh), [load-testing/scripts/llm-perf/configs/test-f-batched-2048.sh](load-testing/scripts/llm-perf/configs/test-f-batched-2048.sh), [load-testing/scripts/llm-perf/configs/test-g-seqs32-batch1024.sh](load-testing/scripts/llm-perf/configs/test-g-seqs32-batch1024.sh), [load-testing/scripts/llm-perf/configs/test-h-seqs32-batch2048.sh](load-testing/scripts/llm-perf/configs/test-h-seqs32-batch2048.sh)
-
 ## Preconditions
 1. Kubernetes pipeline has completed successfully and phi-chat-2 is running.
-2. InferenceService is Ready in namespace llm-serving.
+2. InferenceService is Ready in namespace `llm-serving`.
 3. Prometheus is reachable.
 4. Local tools are installed: kubectl, curl, jq, bash.
 
@@ -77,7 +72,7 @@ Run A through H, then baseline B drift re-check:
 6. It appends rows to CSV files.
 7. It moves to the next profile.
 
-Important: profiles are executed sequentially, not in parallel.
+**Important:** profiles are executed sequentially, not in parallel.
 
 ## Output Files
 Benchmark data is written automatically to:
@@ -97,13 +92,6 @@ Benchmark data is written automatically to:
 - DRAM active
 - success count
 - error count
-
-## Manual Evidence to Capture
-CSV files are the raw benchmark dataset. Also capture:
-1. Screenshot of tokens/sec trend under at least one low, medium, and high concurrency stage.
-2. Screenshot of TTFT p95 and E2E p95 near saturation.
-3. Screenshot of queue depth and KV cache behavior during heavy load.
-4. Short notes on observed saturation point and dominant bottleneck.
 
 ## Test Profile Intent
 Each profile includes a header comment describing intent and likely tradeoffs. See:
@@ -134,12 +122,3 @@ kubectl -n llm-serving get pods -o wide
 2. Reduce concurrency for a sanity pass.
 3. Confirm model name in requests remains phi-2.
 
-## After Run
-Use CSV outputs to update:
-- [docs/benchmarks/vllm-benchmark-report.md](docs/benchmarks/vllm-benchmark-report.md)
-
-Suggested summary fields in report:
-1. Throughput winner profile.
-2. Latency winner profile.
-3. Saturation breakpoint.
-4. Recommended default config for stable operation.
