@@ -79,7 +79,7 @@ data "aws_iam_policy_document" "karpenter_controller" {
     condition {
       test     = "StringEquals"
       variable = "iam:PassedToService"
-      values   = [
+      values = [
         "ec2.amazonaws.com",
         "ec2.amazonaws.com.cn"
       ]
