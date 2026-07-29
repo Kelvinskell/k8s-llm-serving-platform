@@ -27,8 +27,11 @@ kubectl -n llm-serving get pods -o wide
 kubectl -n llm-serving get svc | grep phi-chat-2-predictor
 ```
 
-## Required Port-Forwards
-Use two terminals and keep both running during benchmark execution.
+## Port-Forwards (local run mode)
+The benchmark runner can auto-recover local predictor port-forward after profile rollouts.
+
+- Predictor port-forward on 8000 is optional when `AUTO_PORT_FORWARD_INFER=true` (default) and `INFER_URL` is localhost.
+- Prometheus port-forward on 9090 is still required for local runs.
 
 Terminal 1:
 
@@ -41,6 +44,8 @@ Terminal 2:
 ```bash
 kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:9090
 ```
+
+If you skip Terminal 1, the script will establish/re-establish predictor port-forward automatically as needed.
 
 ## Run Benchmark
 Open a third terminal:
@@ -65,12 +70,13 @@ Run A through H, then baseline B drift re-check:
 
 ## Execution Behavior
 1. The runner loads one test profile.
-2. It patches phi-chat-2 args in KServe.
+2. It scales predictor down, patches phi-chat-2 args in KServe, and scales predictor back up.
 3. It waits for InferenceService Ready.
-4. It executes load at each concurrency level.
-5. It queries Prometheus for benchmark metrics.
-6. It appends rows to CSV files.
-7. It moves to the next profile.
+4. It ensures inference endpoint reachability (auto port-forward recovery in local mode).
+5. It executes load at each concurrency level.
+6. It queries Prometheus for benchmark metrics.
+7. It appends rows to CSV files.
+8. It moves to the next profile.
 
 **Important:** profiles are executed sequentially, not in parallel.
 
@@ -121,4 +127,9 @@ kubectl -n llm-serving get pods -o wide
 1. Check predictor pod logs.
 2. Reduce concurrency for a sanity pass.
 3. Confirm model name in requests remains phi-2.
+4. If running locally, verify Prometheus port-forward is active on 9090.
+
+### Local predictor port-forward drops during rollout
+This can happen because predictor pods are intentionally restarted between profiles.
+With default settings (`AUTO_PORT_FORWARD_INFER=true`), the script auto-recovers inference port-forward before sending load.
 

@@ -17,6 +17,7 @@ NAMESPACE="${NAMESPACE:-llm-serving}"
 INFERENCE_SERVICE="${INFERENCE_SERVICE:-phi-chat-2}"
 PROM_URL="${PROM_URL:-http://127.0.0.1:9090}"
 INFER_URL="${INFER_URL:-http://127.0.0.1:8000/v1/completions}"
+AUTO_PORT_FORWARD_INFER="${AUTO_PORT_FORWARD_INFER:-true}"
 
 # Default vLLM serving arguments used when building each test profile patch.
 MODEL_PATH="${MODEL_PATH:-/models/microsoft/phi-2/main}"
@@ -37,6 +38,10 @@ PROMPT_TEXT="${PROMPT_TEXT:-You are a concise assistant. Summarize Kubernetes au
 
 # One timestamp marker per script invocation to correlate rows across files.
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# Best-effort local port-forward process tracking.
+PF_INFER_PID=""
+PF_INFER_LOG=""
 
 require_tools() {
 	# Fail fast if required CLI tools are unavailable.
@@ -60,9 +65,74 @@ Usage:
 
 Required setup before running:
 	1) phi-chat-2 running and ready
-	2) local port-forward to predictor service on 8000
+	2) local port-forward to predictor service on 8000 (optional when AUTO_PORT_FORWARD_INFER=true and INFER_URL is localhost)
 	3) local port-forward to Prometheus on 9090
 EOF
+}
+
+cleanup_port_forward() {
+	# Stop background port-forward if this script started it.
+	if [[ -n "${PF_INFER_PID}" ]]; then
+		kill "${PF_INFER_PID}" >/dev/null 2>&1 || true
+	fi
+}
+
+is_local_infer_url() {
+	# Detect local URL usage where port-forward is required.
+	[[ "${INFER_URL}" =~ ^http://(127\.0\.0\.1|localhost):[0-9]+/ ]]
+}
+
+get_infer_local_port() {
+	# Parse local port from INFER_URL (http://host:PORT/path).
+	local without_scheme host_port
+	without_scheme="${INFER_URL#http://}"
+	host_port="${without_scheme%%/*}"
+	echo "${host_port##*:}"
+}
+
+ensure_infer_endpoint() {
+	# Re-establish local service port-forward if rollout invalidated the tunnel.
+	if [[ "${AUTO_PORT_FORWARD_INFER}" != "true" ]]; then
+		return 0
+	fi
+
+	if ! is_local_infer_url; then
+		return 0
+	fi
+
+	local health_url
+	health_url="${INFER_URL%/v1/completions}/health"
+	if curl -s --max-time 2 -o /dev/null -w "%{http_code}" "${health_url}" | grep -q '^200$'; then
+		return 0
+	fi
+
+	local local_port svc_name deadline code
+	local_port="$(get_infer_local_port)"
+	svc_name="${INFERENCE_SERVICE}-predictor"
+
+	if [[ -n "${PF_INFER_PID}" ]]; then
+		kill "${PF_INFER_PID}" >/dev/null 2>&1 || true
+		PF_INFER_PID=""
+	fi
+
+	PF_INFER_LOG="$(mktemp)"
+	kubectl -n "${NAMESPACE}" port-forward "svc/${svc_name}" "${local_port}:80" >"${PF_INFER_LOG}" 2>&1 &
+	PF_INFER_PID="$!"
+
+	deadline="$(( $(date +%s) + 60 ))"
+	while [[ "$(date +%s)" -lt "${deadline}" ]]; do
+		code="$(curl -s --max-time 2 -o /dev/null -w "%{http_code}" "${health_url}" || true)"
+		if [[ "${code}" == "200" ]]; then
+			return 0
+		fi
+		sleep 2
+	done
+
+	echo "Failed to establish inference port-forward for ${svc_name}"
+	if [[ -n "${PF_INFER_LOG}" && -f "${PF_INFER_LOG}" ]]; then
+		tail -n 20 "${PF_INFER_LOG}" || true
+	fi
+	return 1
 }
 
 init_results_files() {
@@ -78,7 +148,7 @@ init_results_files() {
 	fi
 
 	if [[ ! -s "${LATENCY_FILE}" ]]; then
-		echo "timestamp,test_id,profile,max_num_seqs,max_num_batched_tokens,concurrency,ttft_p95_s,e2e_p95_s,decode_p95_s,notes" > "${LATENCY_FILE}"
+		echo "timestamp,test_id,profile,max_num_seqs,max_num_batched_tokens,concurrency,ttft_p95_s,e2e_p95_s,decode_p95_s" > "${LATENCY_FILE}"
 	fi
 }
 
@@ -277,7 +347,7 @@ collect_metrics() {
 
 	echo "${TS},${test_id},${profile},${seqs},${batched},${concurrency},${tokens},${running},${waiting},${kv},${tensor},${dram},${success_count},${error_count}" >> "${THROUGHPUT_FILE}"
 	echo "${TS},${test_id},${profile},${seqs},${batched},${concurrency},${ttft},${e2e},${decode}" >> "${TTFT_FILE}"
-	echo "${TS},${test_id},${profile},${seqs},${batched},${concurrency},${ttft},${e2e},${decode},phase7_llm_perf_sweep" >> "${LATENCY_FILE}"
+	echo "${TS},${test_id},${profile},${seqs},${batched},${concurrency},${ttft},${e2e},${decode}" >> "${LATENCY_FILE}"
 }
 
 run_one_test() {
@@ -288,8 +358,10 @@ run_one_test() {
 
 	echo "Applying profile ${PROFILE_NAME}: seqs=${MAX_NUM_SEQS}, batched=${MAX_NUM_BATCHED_TOKENS}"
 	patch_isvc_profile "${MAX_NUM_SEQS}" "${MAX_NUM_BATCHED_TOKENS}"
+	ensure_infer_endpoint
 
 	for c in ${CONCURRENCY_LEVELS}; do
+		ensure_infer_endpoint
 		echo "Running ${TEST_ID} at concurrency ${c}"
 		IFS=',' read -r success_count error_count < <(run_load "${c}" "${WARMUP_SECONDS}" "${DURATION_SECONDS}")
 		collect_metrics "${TEST_ID}" "${PROFILE_NAME}" "${MAX_NUM_SEQS}" "${MAX_NUM_BATCHED_TOKENS}" "${c}" "${success_count}" "${error_count}"
@@ -298,6 +370,7 @@ run_one_test() {
 
 main() {
 	# Entry point: initialize, choose all tests or a single profile, run sequentially.
+	trap cleanup_port_forward EXIT
 	require_tools
 	init_results_files
 
