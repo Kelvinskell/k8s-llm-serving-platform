@@ -18,6 +18,8 @@ INFERENCE_SERVICE="${INFERENCE_SERVICE:-phi-chat-2}"
 PROM_URL="${PROM_URL:-http://127.0.0.1:9090}"
 INFER_URL="${INFER_URL:-http://127.0.0.1:8000/v1/completions}"
 AUTO_PORT_FORWARD_INFER="${AUTO_PORT_FORWARD_INFER:-true}"
+VERBOSE_LOGGING="${VERBOSE_LOGGING:-true}"
+INFER_ENDPOINT_WAIT_SECONDS="${INFER_ENDPOINT_WAIT_SECONDS:-300}"
 
 # Default vLLM serving arguments used when building each test profile patch.
 MODEL_PATH="${MODEL_PATH:-/models/microsoft/phi-2/main}"
@@ -42,6 +44,18 @@ TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 # Best-effort local port-forward process tracking.
 PF_INFER_PID=""
 PF_INFER_LOG=""
+
+log() {
+	local level="$1"
+	shift
+	printf '%s [%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${level}" "$*"
+}
+
+vlog() {
+	if [[ "${VERBOSE_LOGGING}" == "true" ]]; then
+		log "DEBUG" "$*"
+	fi
+}
 
 require_tools() {
 	# Fail fast if required CLI tools are unavailable.
@@ -73,6 +87,7 @@ EOF
 cleanup_port_forward() {
 	# Stop background port-forward if this script started it.
 	if [[ -n "${PF_INFER_PID}" ]]; then
+		vlog "Stopping managed inference port-forward pid=${PF_INFER_PID}"
 		kill "${PF_INFER_PID}" >/dev/null 2>&1 || true
 	fi
 }
@@ -93,43 +108,70 @@ get_infer_local_port() {
 ensure_infer_endpoint() {
 	# Re-establish local service port-forward if rollout invalidated the tunnel.
 	if [[ "${AUTO_PORT_FORWARD_INFER}" != "true" ]]; then
+		vlog "AUTO_PORT_FORWARD_INFER=false, skipping inference endpoint management"
 		return 0
 	fi
 
 	if ! is_local_infer_url; then
+		vlog "INFER_URL is not localhost, skipping local port-forward management"
 		return 0
 	fi
 
-	local health_url
+	local health_url code
 	health_url="${INFER_URL%/v1/completions}/health"
-	if curl -s --max-time 2 -o /dev/null -w "%{http_code}" "${health_url}" | grep -q '^200$'; then
+	code="$(curl -s --max-time 2 -o /dev/null -w "%{http_code}" "${health_url}" || true)"
+	if [[ "${code}" == "200" ]]; then
+		vlog "Inference endpoint is healthy: ${health_url}"
 		return 0
 	fi
+	vlog "Inference endpoint probe returned code=${code}; starting/restarting port-forward"
 
-	local local_port svc_name deadline code
+	local local_port svc_name deadline attempt attempt_deadline
 	local_port="$(get_infer_local_port)"
 	svc_name="${INFERENCE_SERVICE}-predictor"
-
-	if [[ -n "${PF_INFER_PID}" ]]; then
-		kill "${PF_INFER_PID}" >/dev/null 2>&1 || true
-		PF_INFER_PID=""
-	fi
-
-	PF_INFER_LOG="$(mktemp)"
-	kubectl -n "${NAMESPACE}" port-forward "svc/${svc_name}" "${local_port}:80" >"${PF_INFER_LOG}" 2>&1 &
-	PF_INFER_PID="$!"
-
-	deadline="$(( $(date +%s) + 60 ))"
+	deadline="$(( $(date +%s) + INFER_ENDPOINT_WAIT_SECONDS ))"
+	attempt=0
 	while [[ "$(date +%s)" -lt "${deadline}" ]]; do
-		code="$(curl -s --max-time 2 -o /dev/null -w "%{http_code}" "${health_url}" || true)"
-		if [[ "${code}" == "200" ]]; then
-			return 0
+		attempt="$(( attempt + 1 ))"
+
+		if [[ -n "${PF_INFER_PID}" ]]; then
+			vlog "Stopping stale managed inference port-forward pid=${PF_INFER_PID}"
+			kill "${PF_INFER_PID}" >/dev/null 2>&1 || true
+			PF_INFER_PID=""
+		fi
+
+		PF_INFER_LOG="$(mktemp)"
+		log "INFO" "[attempt ${attempt}] Starting inference port-forward: svc/${svc_name} ${local_port}:80"
+		kubectl -n "${NAMESPACE}" port-forward "svc/${svc_name}" "${local_port}:80" >"${PF_INFER_LOG}" 2>&1 &
+		PF_INFER_PID="$!"
+
+		attempt_deadline="$(( $(date +%s) + 20 ))"
+		while [[ "$(date +%s)" -lt "${attempt_deadline}" && "$(date +%s)" -lt "${deadline}" ]]; do
+			if ! kill -0 "${PF_INFER_PID}" >/dev/null 2>&1; then
+				vlog "Port-forward process exited during attempt ${attempt}; retrying"
+				break
+			fi
+
+			code="$(curl -s --max-time 2 -o /dev/null -w "%{http_code}" "${health_url}" || true)"
+			if [[ "${code}" == "200" ]]; then
+				log "INFO" "Inference endpoint recovered via managed port-forward"
+				return 0
+			fi
+
+			vlog "Waiting for inference endpoint health; attempt=${attempt} last_code=${code}"
+			sleep 2
+		done
+
+		if [[ -n "${PF_INFER_PID}" ]]; then
+			kill "${PF_INFER_PID}" >/dev/null 2>&1 || true
+			PF_INFER_PID=""
 		fi
 		sleep 2
 	done
 
-	echo "Failed to establish inference port-forward for ${svc_name}"
+	log "ERROR" "Failed to establish inference endpoint within ${INFER_ENDPOINT_WAIT_SECONDS}s for ${svc_name}"
 	if [[ -n "${PF_INFER_LOG}" && -f "${PF_INFER_LOG}" ]]; then
+		log "ERROR" "Recent port-forward log tail:"
 		tail -n 20 "${PF_INFER_LOG}" || true
 	fi
 	return 1
@@ -155,6 +197,7 @@ init_results_files() {
 prom_query_scalar() {
 	# Execute a Prometheus instant query and return the first scalar value.
 	local query="$1"
+	vlog "Prometheus query: ${query}" >&2
 	curl -sG "${PROM_URL}/api/v1/query" --data-urlencode "query=${query}" \
 		| jq -r '.data.result[0].value[1] // "NaN"'
 }
@@ -197,7 +240,7 @@ EOF
 	# preserving image, resources, probes, and other fields.
 	# On single-GPU nodes, avoid rollout overlap by draining old predictor pods first.
 	if kubectl -n "${NAMESPACE}" get deploy "${deploy_name}" >/dev/null 2>&1; then
-		echo "Scaling ${deploy_name} to 0 to free GPU before profile patch"
+		log "INFO" "Scaling ${deploy_name} to 0 to free GPU before profile patch"
 		kubectl -n "${NAMESPACE}" scale deploy "${deploy_name}" --replicas=0
 
 		local drain_deadline now pod_count
@@ -205,19 +248,22 @@ EOF
 		while true; do
 			now="$(date +%s)"
 			if [[ "${now}" -ge "${drain_deadline}" ]]; then
-				echo "Timed out waiting for predictor pods to terminate"
+				log "ERROR" "Timed out waiting for predictor pods to terminate"
 				return 1
 			fi
 
 			pod_count="$(kubectl -n "${NAMESPACE}" get pods -l "serving.kserve.io/inferenceservice=${INFERENCE_SERVICE}" --no-headers 2>/dev/null | wc -l | tr -d ' ')"
 			if [[ "${pod_count}" == "0" ]]; then
+				vlog "All predictor pods drained"
 				break
 			fi
+			vlog "Waiting for predictor pods to drain; remaining=${pod_count}"
 
 			sleep 5
 		done
 	fi
 
+	log "INFO" "Patching InferenceService ${INFERENCE_SERVICE} args (seqs=${seqs}, batched=${batched})"
 	kubectl -n "${NAMESPACE}" get inferenceservice "${INFERENCE_SERVICE}" -o json \
 		| jq --argjson args "${args_json}" '
 			.spec.predictor.containers |= map(
@@ -232,10 +278,13 @@ EOF
 
 	# Ensure predictor scales back up after profile patch.
 	if kubectl -n "${NAMESPACE}" get deploy "${deploy_name}" >/dev/null 2>&1; then
+		log "INFO" "Scaling ${deploy_name} back to 1 replica"
 		kubectl -n "${NAMESPACE}" scale deploy "${deploy_name}" --replicas=1
 	fi
 
+	log "INFO" "Waiting for InferenceService/${INFERENCE_SERVICE} Ready"
 	kubectl -n "${NAMESPACE}" wait --for=condition=Ready "inferenceservice/${INFERENCE_SERVICE}" --timeout=900s
+	log "INFO" "InferenceService/${INFERENCE_SERVICE} is Ready"
 }
 
 worker_loop() {
@@ -275,6 +324,7 @@ run_load() {
 	local concurrency="$1"
 	local warmup="$2"
 	local duration="$3"
+	log "INFO" "Starting load phase: concurrency=${concurrency} warmup=${warmup}s measured=${duration}s" >&2
 
 	local success_file error_file
 	success_file="$(mktemp)"
@@ -288,16 +338,19 @@ run_load() {
 		worker_loop "${warmup_end}" "${success_file}" "${error_file}" &
 	done
 	wait
+	vlog "Warmup phase completed for concurrency=${concurrency}" >&2
 
 	for _ in $(seq 1 "${concurrency}"); do
 		worker_loop "${run_end}" "${success_file}" "${error_file}" &
 	done
 	wait
+	vlog "Measured phase completed for concurrency=${concurrency}" >&2
 
 	local success_count error_count
 	# Count request outcomes for this concurrency point.
 	success_count="$(wc -l < "${success_file}" | tr -d ' ')"
 	error_count="$(wc -l < "${error_file}" | tr -d ' ')"
+	log "INFO" "Load result: concurrency=${concurrency} success_count=${success_count} error_count=${error_count}" >&2
 
 	rm -f "${success_file}" "${error_file}"
 
@@ -335,6 +388,7 @@ collect_metrics() {
 	q_dram="avg_over_time(DCGM_FI_PROF_DRAM_ACTIVE[5m])"
 
 	local tokens ttft e2e decode running waiting kv tensor dram
+	log "INFO" "Collecting Prometheus metrics for test=${test_id} concurrency=${concurrency}"
 	tokens="$(prom_query_scalar "${q_tokens}")"
 	ttft="$(prom_query_scalar "${q_ttft}")"
 	e2e="$(prom_query_scalar "${q_e2e}")"
@@ -344,6 +398,7 @@ collect_metrics() {
 	kv="$(prom_query_scalar "${q_kv}")"
 	tensor="$(prom_query_scalar "${q_tensor}")"
 	dram="$(prom_query_scalar "${q_dram}")"
+	log "INFO" "Metrics: tokens=${tokens} ttft_p95=${ttft} e2e_p95=${e2e} decode_p95=${decode} running_max=${running} waiting_max=${waiting} kv_max=${kv}"
 
 	echo "${TS},${test_id},${profile},${seqs},${batched},${concurrency},${tokens},${running},${waiting},${kv},${tensor},${dram},${success_count},${error_count}" >> "${THROUGHPUT_FILE}"
 	echo "${TS},${test_id},${profile},${seqs},${batched},${concurrency},${ttft},${e2e},${decode}" >> "${TTFT_FILE}"
@@ -356,13 +411,13 @@ run_one_test() {
 
 	source "${cfg_file}"
 
-	echo "Applying profile ${PROFILE_NAME}: seqs=${MAX_NUM_SEQS}, batched=${MAX_NUM_BATCHED_TOKENS}"
+	log "INFO" "Applying profile ${PROFILE_NAME}: seqs=${MAX_NUM_SEQS}, batched=${MAX_NUM_BATCHED_TOKENS}"
 	patch_isvc_profile "${MAX_NUM_SEQS}" "${MAX_NUM_BATCHED_TOKENS}"
 	ensure_infer_endpoint
 
 	for c in ${CONCURRENCY_LEVELS}; do
 		ensure_infer_endpoint
-		echo "Running ${TEST_ID} at concurrency ${c}"
+		log "INFO" "Running ${TEST_ID} at concurrency ${c}"
 		IFS=',' read -r success_count error_count < <(run_load "${c}" "${WARMUP_SECONDS}" "${DURATION_SECONDS}")
 		collect_metrics "${TEST_ID}" "${PROFILE_NAME}" "${MAX_NUM_SEQS}" "${MAX_NUM_BATCHED_TOKENS}" "${c}" "${success_count}" "${error_count}"
 	done
@@ -375,6 +430,7 @@ main() {
 	init_results_files
 
 	local action="${1:-all}"
+	log "INFO" "Benchmark runner started: action=${action} namespace=${NAMESPACE} isvc=${INFERENCE_SERVICE}"
 
 	if [[ "${action}" == "help" || "${action}" == "-h" || "${action}" == "--help" ]]; then
 		usage
@@ -394,21 +450,24 @@ main() {
 
 	if [[ "${action}" == "all" ]]; then
 		# Full sweep A-H, then re-run baseline B to detect drift.
+		log "INFO" "Running full A-H sweep with baseline B drift re-check"
 		for t in "${all_tests[@]}"; do
+			vlog "Starting profile config file=${t}"
 			run_one_test "${CONFIG_DIR}/${t}"
 		done
 
-		echo "Re-running baseline B for drift check"
+		log "INFO" "Re-running baseline B for drift check"
 		run_one_test "${CONFIG_DIR}/test-b-seqs-16.sh"
 	else
+		vlog "Running single profile action=${action}"
 		run_one_test "${CONFIG_DIR}/${action}.sh"
 	fi
 
-	echo "Benchmark run complete."
-	echo "Results:"
-	echo "  ${THROUGHPUT_FILE}"
-	echo "  ${TTFT_FILE}"
-	echo "  ${LATENCY_FILE}"
+	log "INFO" "Benchmark run complete"
+	log "INFO" "Results:"
+	log "INFO" "  ${THROUGHPUT_FILE}"
+	log "INFO" "  ${TTFT_FILE}"
+	log "INFO" "  ${LATENCY_FILE}"
 }
 
 main "$@"
