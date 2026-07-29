@@ -46,7 +46,7 @@ kubectl -n monitoring port-forward svc/kube-prometheus-stack-prometheus 9090:909
 
 In Prometheus UI, open Status -> Targets and confirm KServe scrape targets are `UP`.
 
-## Manual Phi-chat-r Apply
+## Manual Phi-chat-3 Apply
 ```bash
 kubectl apply -f kubernetes/serving/kserve/manual/phi-chat-3.yaml
 kubectl -n llm-serving get inferenceservice phi-chat-3 -w
