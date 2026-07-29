@@ -1,33 +1,37 @@
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
-  name: phi-chat-3
+  name: phi-chat-2
   namespace: llm-serving
   annotations:
     serving.kserve.io/deploymentMode: RawDeployment
   labels:
-    app.kubernetes.io/name: phi-chat-3
+    app.kubernetes.io/name: phi-chat-2
     app.kubernetes.io/part-of: llm-serving
 spec:
-  # Istio VirtualService will be used to send 25% traffic to the new revision created from this updated predictor.
-  # Remaining 75% will be sent by Istio VirtualService to the previous ready revision.
   predictor:
+    # Service account used by the serving pod.
     serviceAccountName: vllm-serving
+
+    # Keep scheduling on your GPU node group.
     nodeSelector:
-      eks.amazonaws.com/nodegroup: k8s-llm-serving-gpu-dev
+      gpu: "true"
     tolerations:
       - key: nvidia.com/gpu
         operator: Exists
         effect: NoSchedule
 
+    # Custom container runtime (vLLM OpenAI-compatible server).
     containers:
       - name: kserve-container
         image: vllm/vllm-openai:v0.25.1
         imagePullPolicy: IfNotPresent
         args:
-          - /models/microsoft/Phi-3-mini-4k-instruct/main
+          # Model path from warmed host cache mount.
+          - /models/microsoft/phi-2/main
+          # API model name clients send in requests.
           - --served-model-name
-          - phi-3
+          - phi-2
           - --host
           - 0.0.0.0
           - --port
@@ -75,6 +79,7 @@ spec:
             mountPath: /models
             readOnly: true
 
+    # Reuse node-local model cache prepared by your warmer daemonset.
     volumes:
       - name: model-cache
         hostPath:

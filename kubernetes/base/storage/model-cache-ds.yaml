@@ -20,7 +20,7 @@ spec:
     spec:
       serviceAccountName: model-cache-warmer
       nodeSelector:
-        eks.amazonaws.com/nodegroup: k8s-llm-serving-gpu-dev
+        gpu: "true"
       tolerations:
         - key: nvidia.com/gpu
           operator: Exists

@@ -1,37 +1,34 @@
 apiVersion: serving.kserve.io/v1beta1
 kind: InferenceService
 metadata:
-  name: phi-chat-2
+  name: phi-chat-3
   namespace: llm-serving
   annotations:
     serving.kserve.io/deploymentMode: RawDeployment
   labels:
-    app.kubernetes.io/name: phi-chat-2
+    app.kubernetes.io/name: phi-chat-3
     app.kubernetes.io/part-of: llm-serving
 spec:
+  # Standalone optional Phi-3 deployment.
+  # Apply this manifest manually when you want to run Phi-3 in this cluster.
+  # If GPU capacity is unavailable, Karpenter will provision nodes for scheduling.
   predictor:
-    # Service account used by the serving pod.
     serviceAccountName: vllm-serving
-
-    # Keep scheduling on your GPU node group.
     nodeSelector:
-      eks.amazonaws.com/nodegroup: k8s-llm-serving-gpu-dev
+      gpu: "true"
     tolerations:
       - key: nvidia.com/gpu
         operator: Exists
         effect: NoSchedule
 
-    # Custom container runtime (vLLM OpenAI-compatible server).
     containers:
       - name: kserve-container
         image: vllm/vllm-openai:v0.25.1
         imagePullPolicy: IfNotPresent
         args:
-          # Model path from warmed host cache mount.
-          - /models/microsoft/phi-2/main
-          # API model name clients send in requests.
+          - /models/microsoft/Phi-3-mini-4k-instruct/main
           - --served-model-name
-          - phi-2
+          - phi-3
           - --host
           - 0.0.0.0
           - --port
@@ -79,7 +76,6 @@ spec:
             mountPath: /models
             readOnly: true
 
-    # Reuse node-local model cache prepared by your warmer daemonset.
     volumes:
       - name: model-cache
         hostPath:
