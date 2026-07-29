@@ -119,10 +119,7 @@ module "kserve" {
 
 # Deploy KEDA autoscaling operator last so it comes after core cluster addons.
 module "keda" {
+  count  = var.enable_keda_module ? 1 : 0
   source = "../../modules/keda"
 
-  depends_on = [
-    module.eks,
-    module.nodegroups
-  ]
 }

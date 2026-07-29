@@ -5,6 +5,7 @@ resource "helm_release" "keda" {
   version          = "2.16.1"
   namespace        = "keda"
   create_namespace = true
+  timeout          = 900
 
   set {
     name  = "crds.install"

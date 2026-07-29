@@ -234,3 +234,9 @@ variable "enable_kserve_module" {
   type        = bool
   default     = true
 }
+
+variable "enable_keda_module" {
+  description = "Enable or disable KEDA module"
+  type        = bool
+  default     = true
+}
