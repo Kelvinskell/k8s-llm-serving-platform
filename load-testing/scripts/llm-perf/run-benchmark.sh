@@ -1,37 +1,45 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Resolve script-relative paths so execution works from any current directory.
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")"/../../.. && pwd)"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="${SCRIPT_DIR}/configs"
 RESULTS_DIR="${ROOT_DIR}/load-testing/results"
 
+# CSV output files (append-only) for benchmark artifacts.
 THROUGHPUT_FILE="${RESULTS_DIR}/throughput-vs-concurrency.csv"
 TTFT_FILE="${RESULTS_DIR}/ttft-vs-concurrency.csv"
 LATENCY_FILE="${RESULTS_DIR}/latency-vs-concurrency.csv"
 
+# Runtime endpoints and Kubernetes target.
 NAMESPACE="${NAMESPACE:-llm-serving}"
 INFERENCE_SERVICE="${INFERENCE_SERVICE:-phi-chat-2}"
 PROM_URL="${PROM_URL:-http://127.0.0.1:9090}"
 INFER_URL="${INFER_URL:-http://127.0.0.1:8000/v1/completions}"
 
+# Default vLLM serving arguments used when building each test profile patch.
 MODEL_PATH="${MODEL_PATH:-/models/microsoft/phi-2/main}"
 SERVED_MODEL_NAME="${SERVED_MODEL_NAME:-phi-2}"
 GPU_MEMORY_UTILIZATION="${GPU_MEMORY_UTILIZATION:-0.85}"
 POD_REGEX="${POD_REGEX:-phi-chat-2.*}"
 
+# Load generation controls.
 CONCURRENCY_LEVELS="${CONCURRENCY_LEVELS:-1 5 10 20 40}"
 WARMUP_SECONDS="${WARMUP_SECONDS:-120}"
 DURATION_SECONDS="${DURATION_SECONDS:-480}"
 REQUEST_TIMEOUT_SECONDS="${REQUEST_TIMEOUT_SECONDS:-120}"
 
+# Request payload defaults.
 MAX_TOKENS="${MAX_TOKENS:-128}"
 TEMPERATURE="${TEMPERATURE:-0.2}"
 PROMPT_TEXT="${PROMPT_TEXT:-You are a concise assistant. Summarize Kubernetes autoscaling in one short paragraph.}"
 
+# One timestamp marker per script invocation to correlate rows across files.
 TS="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 require_tools() {
+	# Fail fast if required CLI tools are unavailable.
 	command -v curl >/dev/null 2>&1 || { echo "Missing curl"; exit 1; }
 	command -v jq >/dev/null 2>&1 || { echo "Missing jq"; exit 1; }
 	command -v kubectl >/dev/null 2>&1 || { echo "Missing kubectl"; exit 1; }
@@ -58,6 +66,7 @@ EOF
 }
 
 init_results_files() {
+	# Initialize CSV headers if files do not exist yet.
 	mkdir -p "${RESULTS_DIR}"
 
 	if [[ ! -s "${THROUGHPUT_FILE}" ]]; then
@@ -74,12 +83,14 @@ init_results_files() {
 }
 
 prom_query_scalar() {
+	# Execute a Prometheus instant query and return the first scalar value.
 	local query="$1"
 	curl -sG "${PROM_URL}/api/v1/query" --data-urlencode "query=${query}" \
 		| jq -r '.data.result[0].value[1] // "NaN"'
 }
 
 patch_isvc_profile() {
+	# Patch phi-chat-2 predictor args for the active profile and wait for readiness.
 	local seqs="$1"
 	local batched="$2"
 
@@ -111,26 +122,25 @@ EOF
 )
 	fi
 
-	kubectl -n "${NAMESPACE}" patch inferenceservice "${INFERENCE_SERVICE}" --type merge -p "$(cat <<EOF
-{
-	"spec": {
-		"predictor": {
-			"containers": [
-				{
-					"name": "kserve-container",
-					"args": ${args_json}
-				}
-			]
-		}
-	}
-}
-EOF
-)"
+	# Update only .args for the named container on the live object,
+	# preserving image, resources, probes, and other fields.
+	kubectl -n "${NAMESPACE}" get inferenceservice "${INFERENCE_SERVICE}" -o json \
+		| jq --argjson args "${args_json}" '
+			.spec.predictor.containers |= map(
+				if .name == "kserve-container" then
+					. + {args: $args}
+				else
+					.
+				end
+			)
+		' \
+		| kubectl apply -f -
 
 	kubectl -n "${NAMESPACE}" wait --for=condition=Ready "inferenceservice/${INFERENCE_SERVICE}" --timeout=900s
 }
 
 worker_loop() {
+	# One worker process sending requests until the configured epoch cutoff.
 	local end_epoch="$1"
 	local success_file="$2"
 	local error_file="$3"
@@ -162,6 +172,7 @@ EOF
 }
 
 run_load() {
+	# Run warmup first, then measured load window for a single concurrency level.
 	local concurrency="$1"
 	local warmup="$2"
 	local duration="$3"
@@ -185,6 +196,7 @@ run_load() {
 	wait
 
 	local success_count error_count
+	# Count request outcomes for this concurrency point.
 	success_count="$(wc -l < "${success_file}" | tr -d ' ')"
 	error_count="$(wc -l < "${error_file}" | tr -d ' ')"
 
@@ -194,6 +206,7 @@ run_load() {
 }
 
 collect_metrics() {
+	# Query KPI set from Prometheus and append one row to each result CSV.
 	local test_id="$1"
 	local profile="$2"
 	local seqs="$3"
@@ -203,14 +216,23 @@ collect_metrics() {
 	local error_count="$7"
 
 	local q_tokens q_ttft q_e2e q_decode q_running q_waiting q_kv q_tensor q_dram
+	# Throughput: generated output tokens per second across scoped phi-chat-2 pods.
 	q_tokens="sum(rate(vllm:generation_tokens_total{namespace=\"${NAMESPACE}\",pod=~\"${POD_REGEX}\"}[1m]))"
+	# TTFT p95: user-perceived first-token latency tail (95th percentile).
 	q_ttft="histogram_quantile(0.95, sum by (le) (rate(vllm:time_to_first_token_seconds_bucket{namespace=\"${NAMESPACE}\",pod=~\"${POD_REGEX}\"}[5m])))"
+	# E2E p95: full request inference latency tail (95th percentile).
 	q_e2e="histogram_quantile(0.95, sum by (le) (rate(vllm:request_inference_time_seconds_bucket{namespace=\"${NAMESPACE}\",pod=~\"${POD_REGEX}\"}[5m])))"
+	# Decode p95: generation/decode-stage latency tail (95th percentile).
 	q_decode="histogram_quantile(0.95, sum by (le) (rate(vllm:request_decode_time_seconds_bucket{namespace=\"${NAMESPACE}\",pod=~\"${POD_REGEX}\"}[5m])))"
-	q_running="max(vllm:num_requests_running{namespace=\"${NAMESPACE}\",pod=~\"${POD_REGEX}\"})"
-	q_waiting="max(vllm:num_requests_waiting{namespace=\"${NAMESPACE}\",pod=~\"${POD_REGEX}\"})"
-	q_kv="max(vllm:kv_cache_usage_perc{namespace=\"${NAMESPACE}\",pod=~\"${POD_REGEX}\"})"
+	# Running requests: peak in-flight requests over the last 5 minutes.
+	q_running="max(max_over_time(vllm:num_requests_running{namespace=\"${NAMESPACE}\",pod=~\"${POD_REGEX}\"}[5m]))"
+	# Waiting requests: peak queued requests over the last 5 minutes.
+	q_waiting="max(max_over_time(vllm:num_requests_waiting{namespace=\"${NAMESPACE}\",pod=~\"${POD_REGEX}\"}[5m]))"
+	# KV cache usage: peak KV usage percentage over the last 5 minutes.
+	q_kv="100 * max(max_over_time(vllm:kv_cache_usage_perc{namespace=\"${NAMESPACE}\",pod=~\"${POD_REGEX}\"}[5m]))"
+	# Tensor active: 5-minute average Tensor Core activity (cluster-level DCGM signal).
 	q_tensor="avg_over_time(DCGM_FI_PROF_PIPE_TENSOR_ACTIVE[5m])"
+	# DRAM active: 5-minute average GPU DRAM activity (cluster-level DCGM signal).
 	q_dram="avg_over_time(DCGM_FI_PROF_DRAM_ACTIVE[5m])"
 
 	local tokens ttft e2e decode running waiting kv tensor dram
@@ -230,6 +252,7 @@ collect_metrics() {
 }
 
 run_one_test() {
+	# Execute one profile end-to-end across all configured concurrency levels.
 	local cfg_file="$1"
 
 	source "${cfg_file}"
@@ -245,6 +268,7 @@ run_one_test() {
 }
 
 main() {
+	# Entry point: initialize, choose all tests or a single profile, run sequentially.
 	require_tools
 	init_results_files
 
@@ -267,6 +291,7 @@ main() {
 	)
 
 	if [[ "${action}" == "all" ]]; then
+		# Full sweep A-H, then re-run baseline B to detect drift.
 		for t in "${all_tests[@]}"; do
 			run_one_test "${CONFIG_DIR}/${t}"
 		done
