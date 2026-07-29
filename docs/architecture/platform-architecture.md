@@ -1,9 +1,9 @@
 # Platform Architecture (Phase 7)
 
 ## Context
-This document describes the implemented architecture in this repository as of Phase 7.
+This document captures the implemented architecture of this Kubernetes-native LLM serving platform as of Phase 7. The platform is designed for high throughput, GPU efficiency, autoscaling, and full-stack observability using vLLM, KServe, Prometheus, and Grafana.
 
-Primary goal:
+Primary objectives:
 - Run GPU-based LLM inference on EKS using KServe + vLLM.
 - Scale serving capacity with Kubernetes-native controls.
 - Observe infra and inference behavior with Prometheus/Grafana.
@@ -65,16 +65,16 @@ Traffic path in this repo:
 
 Notes on load balancer:
 - The runbook uses ALB-style external testing examples.
-- Terraform here installs Istio ingress and KServe components; external LB provisioning details may be environment-specific.
+- Terraform in this repository installs Istio ingress and KServe components; external load balancer provisioning can be environment-specific.
 
 ### 5. Autoscaling Layer
-Present in repository:
+Implemented in this repository:
 - KServe-managed autoscaling for KServe predictor ownership.
 - KEDA module and ScaledObject manifest based on Prometheus signals.
 
 Current architecture decision (documented):
 - Keep one autoscaling owner per predictor deployment.
-- Prefer KServe ownership for KServe-managed predictors to avoid HPA conflicts.
+- For KServe-managed predictors, use KServe as the autoscaling owner to avoid HPA conflicts.
 
 ### 6. Observability Layer
 Cluster observability:
@@ -93,7 +93,7 @@ Benchmark orchestration:
 - CSV outputs for throughput, TTFT, and latency curves.
 
 Phase status alignment:
-- Architecture and dashboard work are in place (Phase 7 context).
+- Architecture and dashboard work are complete for the Phase 7 scope.
 - Benchmark report completion remains the final evidence artifact.
 
 ## Reference Paths (Implemented Sources)
@@ -131,4 +131,3 @@ Phase status alignment:
 - Predictable GPU scheduling behavior.
 - Clear separation between infra, serving, autoscaling, and observability concerns.
 - Reproducible load/perf measurement workflow.
-- Portfolio-grade traceability from IaC to runtime evidence.
