@@ -25,9 +25,44 @@ locals {
     tostring(idx) => doc
   }
 
-  knative_serving_core_manifest_map = {
+  knative_serving_core_namespace_manifest_map = {
     for idx, doc in local.knative_serving_core_docs :
     tostring(idx) => doc
+    if can(regex("(?m)^kind:\\s*Namespace\\s*$", doc))
+  }
+
+  # Apply prerequisite Knative objects first so core pods can boot without crashing.
+  knative_serving_core_prereq_manifest_map = {
+    for idx, doc in local.knative_serving_core_docs :
+    tostring(idx) => doc
+    if can(regex("(?m)^kind:\\s*ConfigMap\\s*$", doc)) ||
+      can(regex("(?m)^kind:\\s*ServiceAccount\\s*$", doc)) ||
+      can(regex("(?m)^kind:\\s*Role\\s*$", doc)) ||
+      can(regex("(?m)^kind:\\s*RoleBinding\\s*$", doc)) ||
+      can(regex("(?m)^kind:\\s*ClusterRole\\s*$", doc)) ||
+      can(regex("(?m)^kind:\\s*ClusterRoleBinding\\s*$", doc)) ||
+      can(regex("(?m)^kind:\\s*Service\\s*$", doc))
+  }
+
+  # Apply regular Knative runtime resources after prerequisites are present.
+  knative_serving_core_runtime_manifest_map = {
+    for idx, doc in local.knative_serving_core_docs :
+    tostring(idx) => doc
+    if !can(regex("(?m)^kind:\\s*ConfigMap\\s*$", doc)) &&
+      !can(regex("(?m)^kind:\\s*Namespace\\s*$", doc)) &&
+      !can(regex("(?m)^kind:\\s*ServiceAccount\\s*$", doc)) &&
+      !can(regex("(?m)^kind:\\s*Role\\s*$", doc)) &&
+      !can(regex("(?m)^kind:\\s*RoleBinding\\s*$", doc)) &&
+      !can(regex("(?m)^kind:\\s*ClusterRole\\s*$", doc)) &&
+      !can(regex("(?m)^kind:\\s*ClusterRoleBinding\\s*$", doc)) &&
+      !can(regex("(?m)^kind:\\s*Service\\s*$", doc)) &&
+      !can(regex("(?m)^apiVersion:\\s*networking\\.internal\\.knative\\.dev/", doc))
+  }
+
+  knative_serving_core_webhook_manifest_map = {
+    for idx, doc in local.knative_serving_core_docs :
+    tostring(idx) => doc
+    if can(regex("(?m)^apiVersion:\\s*networking\\.internal\\.knative\\.dev/", doc))
   }
 
   knative_net_istio_manifest_map = {
@@ -40,8 +75,15 @@ locals {
     tostring(idx) => doc if can(regex("(?m)^kind:\\s*CustomResourceDefinition\\s*$", doc))
   }
 
+  kserve_namespace_manifest_map = {
+    for idx, doc in local.kserve_all_docs :
+    tostring(idx) => doc if can(regex("(?m)^kind:\\s*Namespace\\s*$", doc))
+  }
+
   kserve_non_crd_manifest_map = {
     for idx, doc in local.kserve_all_docs :
-    tostring(idx) => doc if !can(regex("(?m)^kind:\\s*CustomResourceDefinition\\s*$", doc))
+    tostring(idx) => doc
+    if !can(regex("(?m)^kind:\\s*CustomResourceDefinition\\s*$", doc)) &&
+      !can(regex("(?m)^kind:\\s*Namespace\\s*$", doc))
   }
 }
