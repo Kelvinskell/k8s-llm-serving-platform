@@ -8,6 +8,9 @@ Primary objectives:
 - Scale serving capacity with Kubernetes-native controls.
 - Observe infra and inference behavior with Prometheus/Grafana.
 
+## Diagram
+- Platform architecture diagram: [docs/architecture/platform-architecture-diagram.md](docs/architecture/platform-architecture-diagram.md)
+
 ## High-Level System
 The platform is composed of:
 - AWS network and EKS foundation provisioned with Terraform.
