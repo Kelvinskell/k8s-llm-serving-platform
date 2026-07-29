@@ -93,6 +93,7 @@ patch_isvc_profile() {
 	# Patch phi-chat-2 predictor args for the active profile and wait for readiness.
 	local seqs="$1"
 	local batched="$2"
+	local deploy_name="${INFERENCE_SERVICE}-predictor"
 
 	local args_json
 	if [[ "${batched}" == "default" ]]; then
@@ -124,6 +125,29 @@ EOF
 
 	# Update only .args for the named container on the live object,
 	# preserving image, resources, probes, and other fields.
+	# On single-GPU nodes, avoid rollout overlap by draining old predictor pods first.
+	if kubectl -n "${NAMESPACE}" get deploy "${deploy_name}" >/dev/null 2>&1; then
+		echo "Scaling ${deploy_name} to 0 to free GPU before profile patch"
+		kubectl -n "${NAMESPACE}" scale deploy "${deploy_name}" --replicas=0
+
+		local drain_deadline now pod_count
+		drain_deadline="$(( $(date +%s) + 300 ))"
+		while true; do
+			now="$(date +%s)"
+			if [[ "${now}" -ge "${drain_deadline}" ]]; then
+				echo "Timed out waiting for predictor pods to terminate"
+				return 1
+			fi
+
+			pod_count="$(kubectl -n "${NAMESPACE}" get pods -l "serving.kserve.io/inferenceservice=${INFERENCE_SERVICE}" --no-headers 2>/dev/null | wc -l | tr -d ' ')"
+			if [[ "${pod_count}" == "0" ]]; then
+				break
+			fi
+
+			sleep 5
+		done
+	fi
+
 	kubectl -n "${NAMESPACE}" get inferenceservice "${INFERENCE_SERVICE}" -o json \
 		| jq --argjson args "${args_json}" '
 			.spec.predictor.containers |= map(
@@ -135,6 +159,11 @@ EOF
 			)
 		' \
 		| kubectl apply -f -
+
+	# Ensure predictor scales back up after profile patch.
+	if kubectl -n "${NAMESPACE}" get deploy "${deploy_name}" >/dev/null 2>&1; then
+		kubectl -n "${NAMESPACE}" scale deploy "${deploy_name}" --replicas=1
+	fi
 
 	kubectl -n "${NAMESPACE}" wait --for=condition=Ready "inferenceservice/${INFERENCE_SERVICE}" --timeout=900s
 }
