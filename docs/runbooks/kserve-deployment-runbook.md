@@ -116,12 +116,15 @@ for i in {1..1000}; do echo "T5 run $i"; curl -s http://<ALB_DNS>/v1/completions
 - Current architecture uses KServe-managed autoscaling for `phi-chat-2` and does not depend on Karpenter scale-out.
 - `phi-chat-3` can stay `Pending` when GPU/cpu capacity is exhausted or node selectors/tolerations cannot be satisfied.
 - This is expected in the current design when no node autoscaler is available to add new GPU nodes.
+- I observed at least one successful Karpenter node provisioning event during load, but scaling behavior was not reliable while HPA ownership was conflicting.
 
 ## Known Behavior and Incidents
-- We observed autoscaling conflicts when both KServe HPA and KEDA HPA targeted `phi-chat-2-predictor`.
+- I observed autoscaling conflicts when both KServe HPA and KEDA HPA targeted `phi-chat-2-predictor`.
 - Symptom: `AmbiguousSelector` and scale up/down thrashing in HPA events.
+- Observed behavior: replicas briefly scaled up (for example, to 2) and then were forced back down to 1 by the competing HPA.
+- Observed behavior: Karpenter did provision an additional self-managed GPU node at least once, but demand was not sustained because replicas were scaled back down.
 - Resolution: keep KServe as the only autoscaler owner for KServe-managed predictors.
-- We also observed `phi-chat-3` pending due to scheduling constraints while no node autoscaler was available.
+- I also observed `phi-chat-3` pending due to scheduling constraints while no node autoscaler was available.
 - Operational impact: queue depth can increase while replicas stay constrained by existing node capacity.
 
 Use these checks during incidents:
