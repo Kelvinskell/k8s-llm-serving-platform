@@ -68,3 +68,6 @@ jobs:
 
           # Apply KServe-managed InferenceService resources.
           kubectl apply -f kubernetes/serving/kserve/auto
+
+          # Apply ScaledObject resource for keda-based autoscaling of the KServe InferenceService.
+          kubectl apply -f kubernetes/autoscaling
