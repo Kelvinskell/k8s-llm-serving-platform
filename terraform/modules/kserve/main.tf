@@ -15,22 +15,6 @@ data "http" "kserve_all" {
   url = "https://github.com/kserve/kserve/releases/download/${var.kserve_version}/kserve.yaml"
 }
 
-data "kubectl_file_documents" "knative_serving_crds" {
-  content = data.http.knative_serving_crds.response_body
-}
-
-data "kubectl_file_documents" "knative_serving_core" {
-  content = data.http.knative_serving_core.response_body
-}
-
-data "kubectl_file_documents" "knative_net_istio" {
-  content = data.http.knative_net_istio.response_body
-}
-
-data "kubectl_file_documents" "kserve_all" {
-  content = data.http.kserve_all.response_body
-}
-
 
 # Cert manager
 resource "helm_release" "cert_manager" {
@@ -103,15 +87,15 @@ resource "helm_release" "istio_ingressgateway" {
 
 # Apply Knative CRDs
 resource "kubectl_manifest" "knative_serving_crds" {
-  for_each  = data.kubectl_file_documents.knative_serving_crds.manifests
-  yaml_body = each.value
+  for_each = local.knative_serving_crds_manifest_map
 
+  yaml_body = each.value
   depends_on = [helm_release.istio_ingressgateway]
 }
 
 # Apply Knative core
 resource "kubectl_manifest" "knative_serving_core" {
-  for_each  = data.kubectl_file_documents.knative_serving_core.manifests
+  for_each  = local.knative_serving_core_manifest_map
   yaml_body = each.value
 
   depends_on = [kubectl_manifest.knative_serving_crds]
@@ -120,7 +104,7 @@ resource "kubectl_manifest" "knative_serving_core" {
 
 # Apply net-istio
 resource "kubectl_manifest" "knative_net_istio" {
-  for_each  = data.kubectl_file_documents.knative_net_istio.manifests
+  for_each  = local.knative_net_istio_manifest_map
   yaml_body = each.value
 
   depends_on = [kubectl_manifest.knative_serving_core]
@@ -143,21 +127,8 @@ resource "kubectl_manifest" "knative_config_network" {
   depends_on = [kubectl_manifest.knative_net_istio]
 }
 
-# Split KServe docs into CRDs and non-CRDs
-locals {
-  kserve_crd_manifests = {
-    for k, v in data.kubectl_file_documents.kserve_all.manifests :
-    k => v if can(regex("^CustomResourceDefinition/", k))
-  }
-
-  kserve_non_crd_manifests = {
-    for k, v in data.kubectl_file_documents.kserve_all.manifests :
-    k => v if !can(regex("^CustomResourceDefinition/", k))
-  }
-}
-
 resource "kubectl_manifest" "kserve_crds" {
-  for_each  = local.kserve_crd_manifests
+  for_each  = local.kserve_crd_manifest_map
   yaml_body = each.value
 
   depends_on = [kubectl_manifest.knative_config_network]
@@ -171,7 +142,7 @@ resource "time_sleep" "wait_kserve_crds" {
 }
 
 resource "kubectl_manifest" "kserve_resources" {
-  for_each  = local.kserve_non_crd_manifests
+  for_each  = local.kserve_non_crd_manifest_map
   yaml_body = each.value
 
   depends_on = [time_sleep.wait_kserve_crds]
