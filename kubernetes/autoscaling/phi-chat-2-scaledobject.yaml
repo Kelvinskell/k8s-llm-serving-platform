@@ -1,0 +1,43 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: phi-chat-2-scaledobject
+  namespace: llm-serving
+spec:
+  scaleTargetRef:
+    name: phi-chat-2-predictor
+  minReplicaCount: 1
+  maxReplicaCount: 6
+  pollingInterval: 15
+  cooldownPeriod: 180
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 30
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 30
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Percent
+              value: 25
+              periodSeconds: 60
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+        metricName: phi_chat_2_rps
+        threshold: "5"
+        query: |
+          sum(
+            rate(
+              istio_requests_total{
+                destination_workload_namespace="llm-serving",
+                destination_workload=~"phi-chat-2-predictor.*",
+                response_code!~"5.."
+              }[1m]
+            )
+          )
