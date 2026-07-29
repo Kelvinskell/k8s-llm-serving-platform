@@ -36,12 +36,12 @@ locals {
     for idx, doc in local.knative_serving_core_docs :
     tostring(idx) => doc
     if can(regex("(?m)^kind:\\s*ConfigMap\\s*$", doc)) ||
-      can(regex("(?m)^kind:\\s*ServiceAccount\\s*$", doc)) ||
-      can(regex("(?m)^kind:\\s*Role\\s*$", doc)) ||
-      can(regex("(?m)^kind:\\s*RoleBinding\\s*$", doc)) ||
-      can(regex("(?m)^kind:\\s*ClusterRole\\s*$", doc)) ||
-      can(regex("(?m)^kind:\\s*ClusterRoleBinding\\s*$", doc)) ||
-      can(regex("(?m)^kind:\\s*Service\\s*$", doc))
+    can(regex("(?m)^kind:\\s*ServiceAccount\\s*$", doc)) ||
+    can(regex("(?m)^kind:\\s*Role\\s*$", doc)) ||
+    can(regex("(?m)^kind:\\s*RoleBinding\\s*$", doc)) ||
+    can(regex("(?m)^kind:\\s*ClusterRole\\s*$", doc)) ||
+    can(regex("(?m)^kind:\\s*ClusterRoleBinding\\s*$", doc)) ||
+    can(regex("(?m)^kind:\\s*Service\\s*$", doc))
   }
 
   # Apply regular Knative runtime resources after prerequisites are present.
@@ -49,14 +49,14 @@ locals {
     for idx, doc in local.knative_serving_core_docs :
     tostring(idx) => doc
     if !can(regex("(?m)^kind:\\s*ConfigMap\\s*$", doc)) &&
-      !can(regex("(?m)^kind:\\s*Namespace\\s*$", doc)) &&
-      !can(regex("(?m)^kind:\\s*ServiceAccount\\s*$", doc)) &&
-      !can(regex("(?m)^kind:\\s*Role\\s*$", doc)) &&
-      !can(regex("(?m)^kind:\\s*RoleBinding\\s*$", doc)) &&
-      !can(regex("(?m)^kind:\\s*ClusterRole\\s*$", doc)) &&
-      !can(regex("(?m)^kind:\\s*ClusterRoleBinding\\s*$", doc)) &&
-      !can(regex("(?m)^kind:\\s*Service\\s*$", doc)) &&
-      !can(regex("(?m)^apiVersion:\\s*networking\\.internal\\.knative\\.dev/", doc))
+    !can(regex("(?m)^kind:\\s*Namespace\\s*$", doc)) &&
+    !can(regex("(?m)^kind:\\s*ServiceAccount\\s*$", doc)) &&
+    !can(regex("(?m)^kind:\\s*Role\\s*$", doc)) &&
+    !can(regex("(?m)^kind:\\s*RoleBinding\\s*$", doc)) &&
+    !can(regex("(?m)^kind:\\s*ClusterRole\\s*$", doc)) &&
+    !can(regex("(?m)^kind:\\s*ClusterRoleBinding\\s*$", doc)) &&
+    !can(regex("(?m)^kind:\\s*Service\\s*$", doc)) &&
+    !can(regex("(?m)^apiVersion:\\s*networking\\.internal\\.knative\\.dev/", doc))
   }
 
   knative_serving_core_webhook_manifest_map = {
@@ -84,6 +84,6 @@ locals {
     for idx, doc in local.kserve_all_docs :
     tostring(idx) => doc
     if !can(regex("(?m)^kind:\\s*CustomResourceDefinition\\s*$", doc)) &&
-      !can(regex("(?m)^kind:\\s*Namespace\\s*$", doc))
+    !can(regex("(?m)^kind:\\s*Namespace\\s*$", doc))
   }
 }

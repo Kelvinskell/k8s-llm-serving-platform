@@ -93,7 +93,7 @@ resource "kubectl_manifest" "knative_serving_crds" {
   apply_only       = true
   wait_for_rollout = false
   yaml_body        = each.value
-  depends_on = [helm_release.istio_ingressgateway]
+  depends_on       = [helm_release.istio_ingressgateway]
 }
 
 # Create knative-serving namespace before namespaced core prerequisites.
@@ -162,7 +162,7 @@ resource "kubectl_manifest" "knative_config_network" {
 }
 
 resource "kubectl_manifest" "kserve_crds" {
-  for_each  = local.kserve_crd_manifest_map
+  for_each = local.kserve_crd_manifest_map
   # Work around kubectl provider read-after-apply flakiness for CRDs.
   apply_only        = true
   wait_for_rollout  = false
