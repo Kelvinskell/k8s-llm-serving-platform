@@ -68,6 +68,24 @@ Run A through H, then baseline B drift re-check:
 ./run-benchmark.sh all
 ```
 
+Recommended (cross-platform):
+
+```bash
+./run-benchmark.sh all 2>&1 | tee ../../results/benchmark.log
+```
+
+ Bash invocation (prevent sleep during long run)
+
+```bash
+systemd-inhibit --what=sleep --why="llm benchmark" bash -lc 'bash ./run-benchmark.sh all 2>&1 | tee ../../results/benchmark.log'
+```
+
+macOS only (prevent sleep during long run):
+
+```bash
+caffeinate -dimsu ./run-benchmark.sh all 2>&1 | tee ../../results/benchmark.log
+```
+
 ## Execution Behavior
 1. The runner loads one test profile.
 2. It scales predictor down, patches phi-chat-2 args in KServe, and scales predictor back up.
