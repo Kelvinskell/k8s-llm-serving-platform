@@ -127,7 +127,20 @@ jobs:
       # Destroy is intentionally manual-only.
       - name: Terraform destroy (manual)
         if: github.event_name == 'workflow_dispatch' && github.event.inputs.terraform_action == 'destroy'
-        run: terraform destroy -auto-approve -var-file=ci.auto.tfvars
+        run: |
+          set -euo pipefail
+
+          echo "Phase 1/3: disable Kubernetes add-on modules while cluster is reachable"
+          terraform apply -auto-approve -var-file=ci.auto.tfvars \
+            -var="enable_kserve_module=false" \
+            -var="enable_observability=false" \
+            -var="enable_nvidia_device_plugin=false"
+
+          echo "Phase 2/3: destroy Karpenter before core EKS teardown"
+          terraform destroy -auto-approve -var-file=ci.auto.tfvars -target=module.karpentar
+
+          echo "Phase 3/3: destroy remaining infrastructure"
+          terraform destroy -auto-approve -var-file=ci.auto.tfvars
 
   trigger-k8s:
     needs: terraform-dev
