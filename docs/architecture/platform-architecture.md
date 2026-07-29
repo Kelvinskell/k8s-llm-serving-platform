@@ -9,7 +9,9 @@ Primary objectives:
 - Observe infra and inference behavior with Prometheus/Grafana.
 
 ## Diagram
-- Platform architecture diagram: [docs/architecture/platform-architecture-diagram.md](docs/architecture/platform-architecture-diagram.md)
+![Platform architecture diagram](k8s-llm-serving-vllm.png)
+
+- Mermaid source: [docs/architecture/platform-architecture-diagram.md](docs/architecture/platform-architecture-diagram.md)
 
 ## High-Level System
 The platform is composed of:
