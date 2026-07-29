@@ -29,15 +29,21 @@ spec:
     - type: prometheus
       metadata:
         serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
-        metricName: phi_chat_2_rps
+        metricName: phi_chat_2_queue_depth
         threshold: "5"
         query: |
-          sum(
-            rate(
-              istio_requests_total{
-                destination_workload_namespace="llm-serving",
-                destination_workload=~"phi-chat-2-predictor.*",
-                response_code!~"5.."
-              }[1m]
+          sum(vllm:num_requests_waiting{namespace="llm-serving", pod=~"phi-chat-2.*"})
+
+    - type: prometheus
+      metadata:
+        serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+        metricName: phi_chat_2_ttft_p95_seconds
+        threshold: "4"
+        query: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(vllm:time_to_first_token_seconds_bucket{namespace="llm-serving", pod=~"phi-chat-2.*"}[5m])
             )
+          )
           )
