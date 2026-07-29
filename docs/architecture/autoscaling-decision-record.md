@@ -5,7 +5,7 @@
 - Do not use KEDA to scale the same predictor Deployment managed by KServe.
 - Do not rely on Karpenter for this phase of the project architecture.
 
-## What We Encountered
+## What I Encountered
 - KEDA and KServe both created HPAs for `phi-chat-2-predictor`.
 - This caused `AmbiguousSelector` warnings and scaling thrash (scale up and immediate scale down).
 - During load, queue depth increased but scaling behavior was unstable while two HPAs competed.
