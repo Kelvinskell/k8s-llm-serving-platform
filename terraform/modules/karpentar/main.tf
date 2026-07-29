@@ -43,5 +43,8 @@ resource "helm_release" "karpenter" {
       }
     })
   ]
-  depends_on = [helm_release.karpenter_crd]
+  depends_on = [
+    helm_release.karpenter_crd,
+    aws_iam_role_policy_attachment.karpenter_controller
+  ]
 }

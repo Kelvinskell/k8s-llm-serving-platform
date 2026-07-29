@@ -75,6 +75,15 @@ data "aws_iam_policy_document" "karpenter_controller" {
     resources = [
       var.karpenter_node_role_arn
     ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = [
+        "ec2.amazonaws.com",
+        "ec2.amazonaws.com.cn"
+      ]
+    }
   }
 
   statement {
@@ -85,8 +94,11 @@ data "aws_iam_policy_document" "karpenter_controller" {
       "iam:AddRoleToInstanceProfile",
       "iam:RemoveRoleFromInstanceProfile",
       "iam:DeleteInstanceProfile",
+      "iam:TagInstanceProfile",
+      "iam:UntagInstanceProfile",
       "iam:GetInstanceProfile",
-      "iam:ListInstanceProfiles"
+      "iam:ListInstanceProfiles",
+      "iam:GetRole"
     ]
     resources = ["*"]
   }
