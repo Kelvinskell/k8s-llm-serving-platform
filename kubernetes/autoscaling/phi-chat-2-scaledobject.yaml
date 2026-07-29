@@ -46,4 +46,3 @@ spec:
               rate(vllm:time_to_first_token_seconds_bucket{namespace="llm-serving", pod=~"phi-chat-2.*"}[5m])
             )
           )
-          )
