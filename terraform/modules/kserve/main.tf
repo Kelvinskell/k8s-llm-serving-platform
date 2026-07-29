@@ -1,3 +1,37 @@
+# Fetch upstream manifests
+data "http" "knative_serving_crds" {
+  url = "https://github.com/knative/serving/releases/download/${var.knative_serving_version}/serving-crds.yaml"
+}
+
+data "http" "knative_serving_core" {
+  url = "https://github.com/knative/serving/releases/download/${var.knative_serving_version}/serving-core.yaml"
+}
+
+data "http" "knative_net_istio" {
+  url = "https://github.com/knative-extensions/net-istio/releases/download/${var.knative_net_istio_version}/net-istio.yaml"
+}
+
+data "http" "kserve_all" {
+  url = "https://github.com/kserve/kserve/releases/download/${var.kserve_version}/kserve.yaml"
+}
+
+data "kubectl_file_documents" "knative_serving_crds" {
+  content = data.http.knative_serving_crds.response_body
+}
+
+data "kubectl_file_documents" "knative_serving_core" {
+  content = data.http.knative_serving_core.response_body
+}
+
+data "kubectl_file_documents" "knative_net_istio" {
+  content = data.http.knative_net_istio.response_body
+}
+
+data "kubectl_file_documents" "kserve_all" {
+  content = data.http.kserve_all.response_body
+}
+
+
 # Cert manager
 resource "helm_release" "cert_manager" {
   name             = var.cert_manager_release_name
@@ -67,80 +101,78 @@ resource "helm_release" "istio_ingressgateway" {
   depends_on = [helm_release.istiod]
 }
 
-# KNative resources
-resource "null_resource" "knative_serving_crds" {
-  triggers = {
-    version = var.knative_serving_version
-  }
-
-  provisioner "local-exec" {
-    command = "kubectl apply -f https://github.com/knative/serving/releases/download/${var.knative_serving_version}/serving-crds.yaml"
-  }
+# Apply Knative CRDs
+resource "kubectl_manifest" "knative_serving_crds" {
+  for_each  = data.kubectl_file_documents.knative_serving_crds.manifests
+  yaml_body = each.value
 
   depends_on = [helm_release.istio_ingressgateway]
 }
 
-resource "null_resource" "knative_serving_core" {
-  triggers = {
-    version = var.knative_serving_version
-  }
+# Apply Knative core
+resource "kubectl_manifest" "knative_serving_core" {
+  for_each  = data.kubectl_file_documents.knative_serving_core.manifests
+  yaml_body = each.value
 
-  provisioner "local-exec" {
-    command = "kubectl apply -f https://github.com/knative/serving/releases/download/${var.knative_serving_version}/serving-core.yaml"
-  }
-
-  depends_on = [null_resource.knative_serving_crds]
+  depends_on = [kubectl_manifest.knative_serving_crds]
 }
 
-resource "null_resource" "knative_net_istio" {
-  triggers = {
-    version = var.knative_net_istio_version
-  }
 
-  provisioner "local-exec" {
-    command = "kubectl apply -f https://github.com/knative-extensions/net-istio/releases/download/${var.knative_net_istio_version}/net-istio.yaml"
-  }
+# Apply net-istio
+resource "kubectl_manifest" "knative_net_istio" {
+  for_each  = data.kubectl_file_documents.knative_net_istio.manifests
+  yaml_body = each.value
 
-  depends_on = [null_resource.knative_serving_core]
+  depends_on = [kubectl_manifest.knative_serving_core]
 }
 
-resource "null_resource" "knative_set_istio_ingress" {
-  triggers = {
-    ingress_class = var.knative_ingress_class
-  }
+# kubectl patch command
+resource "kubectl_manifest" "knative_config_network" {
+  yaml_body = yamlencode({
+    apiVersion = "v1"
+    kind       = "ConfigMap"
+    metadata = {
+      name      = "config-network"
+      namespace = "knative-serving"
+    }
+    data = {
+      "ingress-class" = var.knative_ingress_class
+    }
+  })
 
-  provisioner "local-exec" {
-    command = "kubectl patch configmap/config-network -n knative-serving --type merge --patch '{\"data\":{\"ingress-class\":\"${var.knative_ingress_class}\"}}'"
-  }
-
-  depends_on = [null_resource.knative_net_istio]
+  depends_on = [kubectl_manifest.knative_net_istio]
 }
 
-resource "null_resource" "kserve_install" {
-  triggers = {
-    version = var.kserve_version
+# Split KServe docs into CRDs and non-CRDs
+locals {
+  kserve_crd_manifests = {
+    for k, v in data.kubectl_file_documents.kserve_all.manifests :
+    k => v if can(regex("^CustomResourceDefinition/", k))
   }
 
-  provisioner "local-exec" {
-    interpreter = ["/bin/bash", "-lc"]
-    command     = <<-EOT
-      set -euo pipefail
-
-      kubectl create namespace kserve --dry-run=client -o yaml | kubectl apply -f -
-
-      kubectl apply --server-side --force-conflicts --validate=false \
-        -f https://github.com/kserve/kserve/releases/download/${var.kserve_version}/kserve.yaml
-
-      kubectl wait --for=condition=Established --timeout=300s \
-        crd/inferenceservices.serving.kserve.io \
-        crd/servingruntimes.serving.kserve.io \
-        crd/clusterservingruntimes.serving.kserve.io \
-        crd/clusterstoragecontainers.serving.kserve.io
-
-      kubectl apply --server-side --force-conflicts --validate=false \
-        -f https://github.com/kserve/kserve/releases/download/${var.kserve_version}/kserve.yaml
-    EOT
+  kserve_non_crd_manifests = {
+    for k, v in data.kubectl_file_documents.kserve_all.manifests :
+    k => v if !can(regex("^CustomResourceDefinition/", k))
   }
+}
 
-  depends_on = [null_resource.knative_set_istio_ingress]
+resource "kubectl_manifest" "kserve_crds" {
+  for_each  = local.kserve_crd_manifests
+  yaml_body = each.value
+
+  depends_on = [kubectl_manifest.knative_config_network]
+}
+
+# Give apiserver time to establish CRDs before non-CRD objects
+resource "time_sleep" "wait_kserve_crds" {
+  create_duration = "90s"
+
+  depends_on = [kubectl_manifest.kserve_crds]
+}
+
+resource "kubectl_manifest" "kserve_resources" {
+  for_each  = local.kserve_non_crd_manifests
+  yaml_body = each.value
+
+  depends_on = [time_sleep.wait_kserve_crds]
 }
