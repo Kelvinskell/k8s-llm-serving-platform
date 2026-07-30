@@ -23,12 +23,7 @@
 - KServe KEDA autoscaler doc (annotation patterns and KEDA behavior):
 	- https://kserve.github.io/website/docs/model-serving/predictive-inference/autoscaling/keda-autoscaler
 
-## Evidence (2026-07-30)
-- `ScaledObject` created and Ready:
-	- `phi-chat-2-scaledobject   apps/v1.Deployment   phi-chat-2-predictor   ...   READY=True`
-- HPA ownership moved to KEDA:
-	- `keda-hpa-phi-chat-2-scaledobject   Deployment/phi-chat-2-predictor`
-- No KServe-owned HPA appeared in `kubectl get hpa` after applying `autoscalerClass: external`.
+
 
 ## What I Encountered
 - KEDA and KServe both created HPAs for `phi-chat-2-predictor`.
