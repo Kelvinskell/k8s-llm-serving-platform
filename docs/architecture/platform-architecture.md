@@ -19,7 +19,7 @@ The platform is composed of:
 - GPU-capable worker capacity (managed node groups and Karpenter policy).
 - Model serving layer using KServe RawDeployment with vLLM containers.
 - Service mesh and ingress path with Istio + Knative net-istio.
-- Autoscaling controls using KServe ownership (with KEDA manifests available).
+- Autoscaling controls using single-owner policy with KEDA ownership for `phi-chat-2`.
 - Observability stack using kube-prometheus-stack, DCGM exporter, and ServiceMonitors.
 - Benchmark harness for repeatable latency/throughput measurements.
 
@@ -74,12 +74,13 @@ Notes on load balancer:
 
 ### 5. Autoscaling Layer
 Implemented in this repository:
-- KServe-managed autoscaling for KServe predictor ownership.
-- KEDA module and ScaledObject manifest based on Prometheus signals.
+- KServe InferenceService in RawDeployment mode with external autoscaler annotation for `phi-chat-2`.
+- KEDA ScaledObject manages autoscaling for `phi-chat-2-predictor` based on Prometheus signals.
 
 Current architecture decision (documented):
 - Keep one autoscaling owner per predictor deployment.
-- For KServe-managed predictors, use KServe as the autoscaling owner to avoid HPA conflicts.
+- For `phi-chat-2`, use KEDA as the autoscaling owner and keep KServe HPA disabled via `serving.kserve.io/autoscalerClass: external`.
+- Reference: docs/architecture/autoscaling-decision-record.md.
 
 ### 6. Observability Layer
 Cluster observability:
@@ -130,7 +131,7 @@ Phase status alignment:
 - Istio/Knative ingress path is the routing backbone.
 - GPU scheduling combines taints/labels + NVIDIA plugin + optional Karpenter expansion.
 - Prometheus is the metric source for both observability and autoscaling signals.
-- Avoid multiple autoscaling controllers targeting the same predictor deployment.
+- Keep exactly one autoscaling owner per predictor deployment to avoid HPA conflicts.
 
 ## What This Architecture Optimizes For
 - Predictable GPU scheduling behavior.
