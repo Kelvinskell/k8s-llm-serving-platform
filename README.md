@@ -71,6 +71,9 @@ terraform destroy -auto-approve -target=module.karpentar && \
 terraform destroy -auto-approve
 ```
 
+You can also use the Kubernetes pipeline delete option for teardown: [.github/workflows/kubernetes-pipeline.yml](.github/workflows/kubernetes-pipeline.yml).
+Select the delete path there when you want CI-driven cleanup instead of running the commands manually.
+
 ### Workload Deployment
 
 ```bash
