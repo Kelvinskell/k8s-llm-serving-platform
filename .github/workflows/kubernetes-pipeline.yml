@@ -53,11 +53,21 @@ jobs:
       # Apply the Kubernetes manifests from the repo root.
       - name: Apply Kubernetes manifests
         run: |
+          # Core namespace first so all namespaced resources can be created safely.
           kubectl apply -f kubernetes/base/namespaces
+
+          # Create/update the warmer script ConfigMap used by the storage workload.
           kubectl create configmap model-cache-warmer-script \
             --namespace llm-serving \
             --from-file=model-cache-warmer.py=kubernetes/base/storage/model-cache-warmer.py \
             --dry-run=client -o yaml | kubectl apply -f -
+
+          # Base storage + monitoring resources.
           kubectl apply -f kubernetes/base/storage
           kubectl apply -f kubernetes/base/monitoring
+
+          # Apply KServe-managed InferenceService resources.
           kubectl apply -f kubernetes/serving/kserve/auto
+
+          # Apply ScaledObject resource for keda-based autoscaling of the KServe InferenceService.
+          kubectl apply -f kubernetes/autoscaling

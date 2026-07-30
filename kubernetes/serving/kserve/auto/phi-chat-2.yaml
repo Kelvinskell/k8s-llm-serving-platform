@@ -5,6 +5,7 @@ metadata:
   namespace: llm-serving
   annotations:
     serving.kserve.io/deploymentMode: RawDeployment
+    serving.kserve.io/autoscalerClass: external
   labels:
     app.kubernetes.io/name: phi-chat-2
     app.kubernetes.io/part-of: llm-serving

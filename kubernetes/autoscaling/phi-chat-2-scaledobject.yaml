@@ -1,0 +1,48 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: phi-chat-2-scaledobject
+  namespace: llm-serving
+spec:
+  scaleTargetRef:
+    name: phi-chat-2-predictor
+  minReplicaCount: 1
+  maxReplicaCount: 6
+  pollingInterval: 15
+  cooldownPeriod: 180
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleUp:
+          stabilizationWindowSeconds: 30
+          policies:
+            - type: Percent
+              value: 100
+              periodSeconds: 30
+        scaleDown:
+          stabilizationWindowSeconds: 300
+          policies:
+            - type: Percent
+              value: 25
+              periodSeconds: 60
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+        metricName: phi_chat_2_queue_depth
+        threshold: "5"
+        query: |
+          sum(vllm:num_requests_waiting{namespace="llm-serving", pod=~"phi-chat-2.*"})
+
+    - type: prometheus
+      metadata:
+        serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+        metricName: phi_chat_2_ttft_p95_seconds
+        threshold: "4"
+        query: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(vllm:time_to_first_token_seconds_bucket{namespace="llm-serving", pod=~"phi-chat-2.*"}[5m])
+            )
+          )

@@ -40,6 +40,9 @@ kubeconfig
 tmp/
 temp/
 
+# Benchmark artifacts
+/load-testing/results/
+
 # OS / archive noise
 *.zip
 *.tar

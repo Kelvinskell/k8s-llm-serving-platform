@@ -133,6 +133,7 @@ jobs:
           echo "Phase 1/3: disable Kubernetes add-on modules while cluster is reachable"
           terraform apply -auto-approve -var-file=ci.auto.tfvars \
             -var="enable_kserve_module=false" \
+            -var="enable_keda_module=false" \
             -var="enable_observability=false" \
             -var="enable_nvidia_device_plugin=false"
 
