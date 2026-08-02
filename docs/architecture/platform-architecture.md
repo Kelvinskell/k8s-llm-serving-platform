@@ -1,4 +1,4 @@
-# Platform Architecture (Phase 7)
+# Platform Architecture
 
 ## Context
 This document captures the implemented architecture of this Kubernetes-native LLM serving platform as of Phase 7. The platform is designed for high throughput, GPU efficiency, autoscaling, and full-stack observability using vLLM, KServe, Prometheus, and Grafana.
