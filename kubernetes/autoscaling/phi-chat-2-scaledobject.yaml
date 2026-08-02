@@ -30,7 +30,7 @@ spec:
       metadata:
         serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
         metricName: phi_chat_2_queue_depth
-        threshold: "5"
+        threshold: "10"
         query: |
           sum(vllm:num_requests_waiting{namespace="llm-serving", pod=~"phi-chat-2.*"})
 
@@ -38,7 +38,7 @@ spec:
       metadata:
         serverAddress: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
         metricName: phi_chat_2_ttft_p95_seconds
-        threshold: "4"
+        threshold: "6"
         query: |
           histogram_quantile(
             0.95,
