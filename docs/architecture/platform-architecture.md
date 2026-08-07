@@ -1,7 +1,7 @@
 # Platform Architecture
 
 ## Context
-This document captures the implemented architecture of this Kubernetes-native LLM serving platform as of Phase 7. The platform is designed for high throughput, GPU efficiency, autoscaling, and full-stack observability using vLLM, KServe, Prometheus, and Grafana.
+This document captures the implemented architecture of this Kubernetes-native LLM serving platform. The platform is designed for high throughput, GPU efficiency, autoscaling, and full-stack observability using vLLM, KServe, Prometheus, and Grafana.
 
 Primary objectives:
 - Run GPU-based LLM inference on EKS using KServe + vLLM.
