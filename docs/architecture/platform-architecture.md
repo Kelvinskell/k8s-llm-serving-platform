@@ -99,7 +99,6 @@ Benchmark orchestration:
 - CSV outputs for throughput, TTFT, and latency curves.
 
 Phase status alignment:
-- Architecture and dashboard work are complete for the Phase 7 scope.
 - Benchmark report completion remains the final evidence artifact.
 
 ## Reference Paths (Implemented Sources)
